@@ -13,12 +13,9 @@ class ErrorResponse(BaseModel):
     ----------
     detail : str
         Human-readable error message.
-    code : str or None
-        Optional error code for programmatic handling.
     """
 
     detail: str
-    code: str | None = None
 
 
 class HealthResponse(BaseModel):

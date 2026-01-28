@@ -327,6 +327,22 @@ class SimulationRequest(BaseModel):
         Output configuration.
     """
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "model": {"preset": "SIR"},
+                    "population": {"name": "United_States"},
+                    "simulation": {
+                        "start_date": "2024-01-01",
+                        "end_date": "2024-03-01",
+                        "Nsim": 100,
+                    },
+                }
+            ]
+        }
+    }
+
     model: ModelConfig
     population: PopulationConfig
     simulation: SimulationConfig

@@ -49,5 +49,9 @@ class Settings(BaseSettings):
     warm_cache_on_startup: bool = True
     warm_cache_populations: list[str] | None = None  # None = use defaults
 
+    # Timeout settings (seconds)
+    population_load_timeout: float = 30.0  # Max time to load a single population
+    request_timeout: float = 60.0  # Max time for any API request
+
 
 settings = Settings()

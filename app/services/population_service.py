@@ -5,6 +5,8 @@ retrieving population details, and accessing contact matrices.
 """
 
 import functools
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 from epydemix.population.population import (
@@ -21,6 +23,8 @@ from ..api.v1.schemas.population import (
     PopulationSummary,
 )
 
+logger = logging.getLogger(__name__)
+
 
 @functools.lru_cache(maxsize=1)
 def get_locations_df():
@@ -36,11 +40,17 @@ def get_locations_df():
     return get_available_locations()
 
 
+# Cache for population metadata (total_population, n_age_groups)
+# Populated by warm_cache() or on individual population loads
+_population_metadata_cache: dict[str, dict] = {}
+
+
 def list_populations() -> PopulationListResponse:
     """List all available populations.
 
     Retrieves summary information for all populations available in the
-    epydemix data repository.
+    epydemix data repository. If a population has been cached (e.g., via
+    warm_cache), includes total_population and n_age_groups.
 
     Returns
     -------
@@ -65,12 +75,17 @@ def list_populations() -> PopulationListResponse:
             else:
                 available_sources = ["mistry_2021"]
 
+        # Get cached metadata if available
+        metadata = _population_metadata_cache.get(name, {})
+        total_pop = metadata.get("total_population")
+        n_groups = metadata.get("n_age_groups")
+
         populations.append(
             PopulationSummary(
                 name=name,
-                display_name=name.replace("_", " "),
-                total_population=None,  # Would require loading full population
-                n_age_groups=None,
+                display_name=str(name).replace("_", " "),
+                total_population=total_pop,
+                n_age_groups=n_groups,
                 available_contact_sources=available_sources,
             )
         )
@@ -79,10 +94,59 @@ def list_populations() -> PopulationListResponse:
 
 
 @functools.lru_cache(maxsize=50)
+def _load_population_cached_inner(name: str, contacts_source: str) -> Population:
+    """Load a population with caching (internal).
+
+    Parameters
+    ----------
+    name : str
+        Population name (e.g., 'United_States').
+    contacts_source : str
+        Contact matrix source (must be resolved, not None).
+
+    Returns
+    -------
+    Population
+        Loaded epydemix Population object.
+    """
+    return load_epydemix_population(
+        population_name=name,
+        contacts_source=contacts_source,
+    )
+
+
+def _resolve_contacts_source(name: str, contacts_source: str | None) -> str:
+    """Resolve contacts_source to actual value.
+
+    Parameters
+    ----------
+    name : str
+        Population name.
+    contacts_source : str or None
+        Contact source, or None to use default.
+
+    Returns
+    -------
+    str
+        Resolved contact source name.
+    """
+    if contacts_source is not None:
+        return contacts_source
+    # Get the default from locations.csv
+    df = get_locations_df()
+    row = df[df["location"] == name]
+    if len(row) > 0 and "primary_contact_source" in df.columns:
+        return row.iloc[0]["primary_contact_source"]
+    return "mistry_2021"  # fallback default
+
+
 def _load_population_cached(
     name: str, contacts_source: str | None = None
 ) -> Population:
     """Load a population with caching.
+
+    Normalizes contacts_source before caching to avoid duplicate cache entries
+    for None vs explicit default value. Also populates the metadata cache.
 
     Parameters
     ----------
@@ -96,10 +160,16 @@ def _load_population_cached(
     Population
         Loaded epydemix Population object.
     """
-    return load_epydemix_population(
-        population_name=name,
-        contacts_source=contacts_source,
-    )
+    resolved_source = _resolve_contacts_source(name, contacts_source)
+    pop = _load_population_cached_inner(name, resolved_source)
+
+    # Update metadata cache
+    _population_metadata_cache[name] = {
+        "total_population": int(pop.total_population),
+        "n_age_groups": len(pop.Nk),
+    }
+
+    return pop
 
 
 def get_population_detail(name: str, contacts_source: str | None = None) -> PopulationDetail:
@@ -213,3 +283,81 @@ def get_contact_matrices(
         overall=overall,
         age_groups=[str(ag) for ag in pop.Nk_names],
     )
+
+
+# Default populations to pre-warm on startup
+DEFAULT_WARM_POPULATIONS = [
+    "United_States",
+    "Italy",
+    "United_Kingdom",
+    "Germany",
+    "France",
+    "Spain",
+    "Canada",
+    "Australia",
+    "Japan",
+    "Brazil",
+]
+
+
+def warm_cache(
+    populations: list[str] | None = None,
+    max_workers: int = 4,
+) -> dict[str, bool]:
+    """Pre-warm the population cache for faster subsequent requests.
+
+    Loads specified populations in parallel to populate both the lru_cache
+    and the metadata cache.
+
+    Parameters
+    ----------
+    populations : list of str or None, optional
+        Population names to warm. If None, uses DEFAULT_WARM_POPULATIONS.
+    max_workers : int, optional
+        Maximum number of concurrent threads for loading. Default is 4.
+
+    Returns
+    -------
+    dict[str, bool]
+        Dictionary mapping population names to success status.
+    """
+    if populations is None:
+        populations = DEFAULT_WARM_POPULATIONS
+
+    results: dict[str, bool] = {}
+
+    def load_one(name: str) -> tuple[str, bool]:
+        try:
+            _load_population_cached(name, None)
+            return (name, True)
+        except Exception as e:
+            logger.warning(f"Failed to warm cache for {name}: {e}")
+            return (name, False)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(load_one, name): name for name in populations}
+        for future in as_completed(futures):
+            name, success = future.result()
+            results[name] = success
+            if success:
+                logger.info(f"Warmed cache for {name}")
+
+    return results
+
+
+def get_cache_info() -> dict:
+    """Get information about the current cache state.
+
+    Returns
+    -------
+    dict
+        Cache statistics including hits, misses, and cached populations.
+    """
+    cache_info = _load_population_cached_inner.cache_info()
+    return {
+        "hits": cache_info.hits,
+        "misses": cache_info.misses,
+        "maxsize": cache_info.maxsize,
+        "currsize": cache_info.currsize,
+        "cached_populations": list(_population_metadata_cache.keys()),
+    }

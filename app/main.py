@@ -4,12 +4,32 @@ This module configures and creates the FastAPI application instance,
 sets up CORS middleware, and defines the root and health check endpoints.
 """
 
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api.v1.router import router as api_v1_router
 from .api.v1.schemas.common import HealthResponse
 from .config import settings
+from .services.population_service import warm_cache
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Application lifespan handler for startup/shutdown events."""
+    # Startup: warm the population cache
+    if settings.warm_cache_on_startup:
+        logger.info("Warming population cache...")
+        results = warm_cache(populations=settings.warm_cache_populations)
+        success_count = sum(1 for v in results.values() if v)
+        logger.info(f"Warmed {success_count}/{len(results)} populations")
+    yield
+    # Shutdown: nothing to clean up
+
 
 app = FastAPI(
     title=settings.app_name,
@@ -18,6 +38,7 @@ app = FastAPI(
     docs_url=f"{settings.api_v1_prefix}/docs",
     redoc_url=f"{settings.api_v1_prefix}/redoc",
     openapi_url=f"{settings.api_v1_prefix}/openapi.json",
+    lifespan=lifespan,
 )
 
 # CORS middleware

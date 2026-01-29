@@ -45,5 +45,9 @@ class Settings(BaseSettings):
     max_nsim: int = 1000
     default_dt: float = 1.0
 
+    # Cache settings
+    warm_cache_on_startup: bool = True
+    warm_cache_populations: list[str] | None = None  # None = use defaults
+
 
 settings = Settings()

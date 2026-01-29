@@ -12,6 +12,7 @@ from ..schemas.population import (
     PopulationDetail,
     PopulationListResponse,
 )
+from ..schemas.common import CacheInfoResponse
 
 router = APIRouter()
 
@@ -42,6 +43,27 @@ async def get_populations() -> PopulationListResponse:
         return population_service.list_populations()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list populations: {str(e)}")
+
+
+@router.get(
+    "/cache",
+    response_model=CacheInfoResponse,
+    summary="Get cache status",
+    description="Get information about the population cache.",
+)
+async def get_cache_status() -> CacheInfoResponse:
+    """Get population cache status.
+
+    Returns cache statistics including hits, misses, and list of
+    cached populations.
+
+    Returns
+    -------
+    CacheInfoResponse
+        Cache statistics and list of cached populations.
+    """
+    info = population_service.get_cache_info()
+    return CacheInfoResponse(**info)
 
 
 @router.get(

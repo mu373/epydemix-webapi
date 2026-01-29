@@ -7,6 +7,7 @@ population details, and accessing contact matrices.
 from fastapi import APIRouter, HTTPException, Query
 
 from ....services import population_service
+from ....services.population_service import PopulationLoadTimeoutError
 from ..schemas.population import (
     ContactMatrixResponse,
     PopulationDetail,
@@ -99,10 +100,12 @@ async def get_population(
     Raises
     ------
     HTTPException
-        404 if population not found, 500 if retrieval fails.
+        404 if population not found, 504 if timeout, 500 if retrieval fails.
     """
     try:
         return population_service.get_population_detail(name, contacts_source)
+    except PopulationLoadTimeoutError as e:
+        raise HTTPException(status_code=504, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -148,10 +151,12 @@ async def get_contact_matrices(
     Raises
     ------
     HTTPException
-        404 if population not found, 500 if retrieval fails.
+        404 if population not found, 504 if timeout, 500 if retrieval fails.
     """
     try:
         return population_service.get_contact_matrices(name, contacts_source, layers)
+    except PopulationLoadTimeoutError as e:
+        raise HTTPException(status_code=504, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

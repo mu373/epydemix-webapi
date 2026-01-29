@@ -6,7 +6,7 @@ retrieving population details, and accessing contact matrices.
 
 import functools
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
 
 import numpy as np
 from epydemix.population.population import (
@@ -22,8 +22,20 @@ from ..api.v1.schemas.population import (
     PopulationListResponse,
     PopulationSummary,
 )
+from ..config import settings
 
 logger = logging.getLogger(__name__)
+
+
+class PopulationLoadTimeoutError(Exception):
+    """Raised when population loading exceeds the configured timeout."""
+
+    def __init__(self, population_name: str, timeout: float):
+        self.population_name = population_name
+        self.timeout = timeout
+        super().__init__(
+            f"Loading population '{population_name}' timed out after {timeout}s"
+        )
 
 
 @functools.lru_cache(maxsize=1)
@@ -141,9 +153,11 @@ def _resolve_contacts_source(name: str, contacts_source: str | None) -> str:
 
 
 def _load_population_cached(
-    name: str, contacts_source: str | None = None
+    name: str,
+    contacts_source: str | None = None,
+    timeout: float | None = None,
 ) -> Population:
-    """Load a population with caching.
+    """Load a population with caching and optional timeout.
 
     Normalizes contacts_source before caching to avoid duplicate cache entries
     for None vs explicit default value. Also populates the metadata cache.
@@ -154,14 +168,34 @@ def _load_population_cached(
         Population name (e.g., 'United_States').
     contacts_source : str or None, optional
         Contact matrix source. If None, uses the default for the population.
+    timeout : float or None, optional
+        Maximum time in seconds to wait for loading. If None, uses config default.
+        Only applies to cache misses (cached loads are instant).
 
     Returns
     -------
     Population
         Loaded epydemix Population object.
+
+    Raises
+    ------
+    PopulationLoadTimeoutError
+        If loading exceeds the timeout.
     """
     resolved_source = _resolve_contacts_source(name, contacts_source)
-    pop = _load_population_cached_inner(name, resolved_source)
+
+    if timeout is None:
+        timeout = settings.population_load_timeout
+
+    # Use ThreadPoolExecutor to enforce timeout on the load
+    # Note: If already cached, the load is instant so timeout won't trigger
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(_load_population_cached_inner, name, resolved_source)
+        try:
+            pop = future.result(timeout=timeout)
+        except FuturesTimeoutError:
+            future.cancel()
+            raise PopulationLoadTimeoutError(name, timeout)
 
     # Update metadata cache
     _population_metadata_cache[name] = {

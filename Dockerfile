@@ -26,4 +26,4 @@ COPY app/ ./app/
 EXPOSE 8000
 
 # Run with gunicorn + uvicorn workers
-CMD ["uv", "run", "gunicorn", "app.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000"]
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

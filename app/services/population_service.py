@@ -263,6 +263,26 @@ def get_population_detail(name: str, contacts_source: str | None = None) -> Popu
     )
 
 
+def _compute_spectral_radius(matrix: np.ndarray) -> float:
+    """Compute the spectral radius of a matrix.
+
+    The spectral radius is the largest absolute eigenvalue of the matrix.
+    For contact matrices, this is related to the basic reproduction number (R0).
+
+    Parameters
+    ----------
+    matrix : np.ndarray
+        Square matrix to compute spectral radius for.
+
+    Returns
+    -------
+    float
+        The spectral radius (largest absolute eigenvalue).
+    """
+    eigenvalues = np.linalg.eigvals(matrix)
+    return float(np.max(np.abs(eigenvalues.real)))
+
+
 def get_contact_matrices(
     name: str,
     contacts_source: str | None = None,
@@ -271,7 +291,7 @@ def get_contact_matrices(
     """Get contact matrices for a population.
 
     Returns contact matrices for specified layers as well as the combined
-    overall contact matrix.
+    overall contact matrix, along with spectral radii.
 
     Parameters
     ----------
@@ -285,7 +305,7 @@ def get_contact_matrices(
     Returns
     -------
     ContactMatrixResponse
-        Contact matrices by layer and the combined overall matrix.
+        Contact matrices by layer, combined overall matrix, and spectral radii.
 
     Raises
     ------
@@ -297,11 +317,15 @@ def get_contact_matrices(
     # Filter layers if specified
     layer_names = layers if layers else pop.layers
     matrices = {}
+    spectral_radii = {}
+
     for layer in layer_names:
         if layer in pop.contact_matrices:
-            matrices[layer] = pop.contact_matrices[layer].tolist()
+            matrix = pop.contact_matrices[layer]
+            matrices[layer] = matrix.tolist()
+            spectral_radii[layer] = _compute_spectral_radius(matrix)
 
-    # Compute overall matrix
+    # Compute overall matrix and its spectral radius
     overall = None
     if matrices:
         overall_matrix = np.zeros_like(list(pop.contact_matrices.values())[0])
@@ -309,6 +333,7 @@ def get_contact_matrices(
             if layer in pop.contact_matrices:
                 overall_matrix += pop.contact_matrices[layer]
         overall = overall_matrix.tolist()
+        spectral_radii["overall"] = _compute_spectral_radius(overall_matrix)
 
     return ContactMatrixResponse(
         population_name=name,
@@ -316,6 +341,7 @@ def get_contact_matrices(
         layers=matrices,
         overall=overall,
         age_groups=[str(ag) for ag in pop.Nk_names],
+        spectral_radius=spectral_radii,
     )
 
 

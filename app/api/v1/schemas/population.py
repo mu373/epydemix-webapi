@@ -126,6 +126,9 @@ class ContactMatrixResponse(BaseModel):
         Combined contact matrix across all layers.
     age_groups : list of str
         Age group labels corresponding to matrix indices.
+    spectral_radius : dict of {str: float}
+        Spectral radius (largest eigenvalue) for each layer and overall matrix.
+        The spectral radius is related to the basic reproduction number (R0).
     """
 
     population_name: str
@@ -137,6 +140,10 @@ class ContactMatrixResponse(BaseModel):
         default=None, description="Combined contact matrix across all layers"
     )
     age_groups: list[str] = Field(..., description="Age group labels for matrix indices")
+    spectral_radius: dict[str, float] = Field(
+        default_factory=dict,
+        description="Spectral radius (largest eigenvalue) for each layer and overall",
+    )
 
 
 class PresetInfo(BaseModel):

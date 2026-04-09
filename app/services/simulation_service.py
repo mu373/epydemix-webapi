@@ -64,8 +64,10 @@ def create_model(config: ModelConfig) -> EpiModel:
     if config.transitions:
         for trans in config.transitions:
             params = trans.params
-            # Convert list to tuple if needed (for mediated transitions)
-            if isinstance(params, list):
+            # Spontaneous: single parameter name; mediated: tuple of (rate, compartment)
+            if len(params) == 1:
+                params = params[0]
+            else:
                 params = tuple(params)
             model.add_transition(
                 source=trans.source,

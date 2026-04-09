@@ -301,7 +301,7 @@
           "population"
         ],
         "title": "AgeGroupInfo",
-        "description": "Information about a single age group.\n\nAttributes\n----------\nname : str\n    Age group name (e.g., '0-4', '5-9').\npopulation : int\n    Population count in this age group."
+        "description": "Information about a single age group."
       },
       "CacheInfoResponse": {
         "properties": {
@@ -365,7 +365,7 @@
             },
             "type": "object",
             "title": "Data",
-            "description": "Nested structure:\n\n```\ncompartment -> age_group -> quantile -> [values]\n```"
+            "description": "Nested structure: `compartment -> age_group -> quantile -> [values]`."
           }
         },
         "type": "object",
@@ -380,11 +380,13 @@
         "properties": {
           "population_name": {
             "type": "string",
-            "title": "Population Name"
+            "title": "Population Name",
+            "description": "Population identifier."
           },
           "contact_source": {
             "type": "string",
-            "title": "Contact Source"
+            "title": "Contact Source",
+            "description": "Contact matrix source used."
           },
           "layers": {
             "additionalProperties": {
@@ -443,7 +445,7 @@
           "age_groups"
         ],
         "title": "ContactMatrixResponse",
-        "description": "Response containing contact matrices for a population.\n\nAttributes\n----------\npopulation_name : str\n    Population identifier.\ncontact_source : str\n    Contact matrix source used.\nlayers : dict of {str: list of list of float}\n    Contact matrices by layer name, each as a 2D list.\noverall : list of list of float or None\n    Combined contact matrix across all layers.\nage_groups : list of str\n    Age group labels corresponding to matrix indices.\nspectral_radius : dict of {str: float}\n    Spectral radius (largest eigenvalue) for each layer and overall matrix.\n    The spectral radius is related to the basic reproduction number (R0)."
+        "description": "Response containing contact matrices for a population."
       },
       "HTTPValidationError": {
         "properties": {
@@ -513,7 +515,7 @@
               }
             ],
             "title": "Initial Percentages",
-            "description": "Percentage of population in each compartment. Remainder goes to the first compartment.\n\nExample:\n```json\n{\"I\": 0.01, \"R\": 10.0}\n```"
+            "description": "Percentage of population in each compartment. Remainder goes to the first compartment.\nExample: `{\"I\": 0.01, \"R\": 10.0}`."
           },
           "compartments": {
             "anyOf": [
@@ -602,7 +604,7 @@
               }
             ],
             "title": "Preset",
-            "description": "Predefined model preset (`SIR`, `SEIR`, `SIS`). Auto-configures compartments and transitions."
+            "description": "Predefined model preset. Auto-configures compartments and transitions.\n- `SIR`: Susceptible-Infected-Recovered\n- `SEIR`: Susceptible-Exposed-Infected-Recovered\n- `SIS`: Susceptible-Infected-Susceptible\nWhen using a preset, you can still override default parameter values via `parameters`."
           },
           "compartments": {
             "anyOf": [
@@ -617,7 +619,7 @@
               }
             ],
             "title": "Compartments",
-            "description": "Compartment names. Required if no preset."
+            "description": "List of compartment names for a custom model. Required if no preset.\nExample: `[\"S\", \"E\", \"I\", \"R\", \"H\"]`."
           },
           "parameters": {
             "additionalProperties": {
@@ -625,7 +627,7 @@
             },
             "type": "object",
             "title": "Parameters",
-            "description": "Model parameters as key-value pairs.\n\nExample:\n```json\n{\"transmission_rate\": 0.3, \"recovery_rate\": 0.1}\n```"
+            "description": "Model parameters as key-value pairs. Each key is a parameter name referenced by transitions, and the value is its rate.\nFor presets, these override the default values. For custom models, all parameters used in transitions must be defined here.\nExample: `{\"transmission_rate\": 0.3, \"recovery_rate\": 0.1}`."
           },
           "transitions": {
             "anyOf": [
@@ -640,12 +642,12 @@
               }
             ],
             "title": "Transitions",
-            "description": "Transition definitions. Required if no preset."
+            "description": "List of transitions between compartments. Required if no preset.\nEach transition defines how individuals move from one compartment to another."
           }
         },
         "type": "object",
         "title": "ModelConfig",
-        "description": "Epidemic model configuration.\n\nSpecify `preset` for a built-in model, or provide both `compartments` and `transitions` for a custom model."
+        "description": "Epidemic model configuration. Use `preset` for a built-in model (SIR, SEIR, SIS), or provide `compartments`, `parameters`, and `transitions` for a custom model."
       },
       "OutputConfig": {
         "properties": {
@@ -768,7 +770,8 @@
         "properties": {
           "median": {
             "type": "number",
-            "title": "Median"
+            "title": "Median",
+            "description": "Median peak value across simulation runs."
           },
           "ci_95": {
             "items": {
@@ -777,7 +780,8 @@
             "type": "array",
             "maxItems": 2,
             "minItems": 2,
-            "title": "Ci 95"
+            "title": "Ci 95",
+            "description": "95% confidence interval [lower, upper]."
           },
           "peak_date": {
             "anyOf": [
@@ -788,7 +792,8 @@
                 "type": "null"
               }
             ],
-            "title": "Peak Date"
+            "title": "Peak Date",
+            "description": "Date of the median peak."
           }
         },
         "type": "object",
@@ -816,7 +821,7 @@
               }
             ],
             "title": "Contacts Source",
-            "description": "Contact matrix source.\n\nOptions: `prem_2017`, `prem_2021`, `mistry_2021`."
+            "description": "Contact matrix source.\nOptions: `prem_2017`, `prem_2021`, `mistry_2021`."
           },
           "layers": {
             "anyOf": [
@@ -831,7 +836,7 @@
               }
             ],
             "title": "Layers",
-            "description": "Contact layers to include.\n\nOptions: `home`, `work`, `school`, `community`."
+            "description": "Contact layers to include.\nOptions: `home`, `work`, `school`, `community`."
           },
           "age_group_mapping": {
             "anyOf": [
@@ -849,7 +854,7 @@
               }
             ],
             "title": "Age Group Mapping",
-            "description": "Custom age group aggregation.\n\nKeys are new group names, values are lists of source age groups to merge.\n\nExample:\n```json\n{\n  \"0-19\": [\"0-4\", \"5-9\", \"10-14\", \"15-19\"],\n  \"20-64\": [\"20-24\", \"25-29\", ...],\n  \"65+\": [\"65-69\", \"70-74\", \"75+\"]\n}\n```"
+            "description": "Custom age group aggregation. Keys are new group names, values are lists of source age groups to merge.\nExample: `{\"0-19\": [\"0-4\", \"5-9\", \"10-14\", \"15-19\"], \"65+\": [\"65-69\", \"70-74\", \"75+\"]}`."
           }
         },
         "type": "object",
@@ -863,29 +868,34 @@
         "properties": {
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "Population identifier."
           },
           "display_name": {
             "type": "string",
-            "title": "Display Name"
+            "title": "Display Name",
+            "description": "Human-readable name."
           },
           "total_population": {
             "type": "integer",
-            "title": "Total Population"
+            "title": "Total Population",
+            "description": "Total population size."
           },
           "age_groups": {
             "items": {
               "$ref": "#/components/schemas/AgeGroupInfo"
             },
             "type": "array",
-            "title": "Age Groups"
+            "title": "Age Groups",
+            "description": "Information about each age group."
           },
           "contact_sources": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Contact Sources"
+            "title": "Contact Sources",
+            "description": "Available contact matrix sources."
           },
           "default_contact_source": {
             "anyOf": [
@@ -896,14 +906,16 @@
                 "type": "null"
               }
             ],
-            "title": "Default Contact Source"
+            "title": "Default Contact Source",
+            "description": "Default contact source for this population."
           },
           "available_layers": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Available Layers"
+            "title": "Available Layers",
+            "description": "Available contact layers (e.g. home, work, school, community)."
           }
         },
         "type": "object",
@@ -916,7 +928,7 @@
           "available_layers"
         ],
         "title": "PopulationDetail",
-        "description": "Detailed information about a population.\n\nAttributes\n----------\nname : str\n    Population identifier.\ndisplay_name : str\n    Human-readable name.\ntotal_population : int\n    Total population size.\nage_groups : list of AgeGroupInfo\n    Information about each age group.\ncontact_sources : list of str\n    Available contact matrix sources.\ndefault_contact_source : str or None\n    Default contact source for this population.\navailable_layers : list of str\n    Available contact layers (e.g., home, work, school, community)."
+        "description": "Detailed information about a population."
       },
       "PopulationListResponse": {
         "properties": {
@@ -938,7 +950,7 @@
           "total"
         ],
         "title": "PopulationListResponse",
-        "description": "Response for listing all available populations.\n\nAttributes\n----------\npopulations : list of PopulationSummary\n    List of population summaries.\ntotal : int\n    Total number of populations."
+        "description": "Response for listing all available populations."
       },
       "PopulationSummary": {
         "properties": {
@@ -991,7 +1003,7 @@
           "display_name"
         ],
         "title": "PopulationSummary",
-        "description": "Summary information for a population.\n\nAttributes\n----------\nname : str\n    Population identifier (e.g., 'United_States').\ndisplay_name : str\n    Human-readable name (e.g., 'United States').\ntotal_population : int or None\n    Total population size, if available.\nn_age_groups : int or None\n    Number of age groups, if available.\navailable_contact_sources : list of str\n    Available contact matrix sources for this population."
+        "description": "Summary information for a population."
       },
       "PresetInfo": {
         "properties": {
@@ -1040,7 +1052,7 @@
           "transitions"
         ],
         "title": "PresetInfo",
-        "description": "Information about a predefined epidemic model.\n\nAttributes\n----------\nname : str\n    Preset name (e.g., 'SIR', 'SEIR', 'SIS').\ndescription : str\n    Human-readable description of the model.\ncompartments : list of str\n    Names of compartments in the model.\nparameters : dict of {str: float}\n    Default parameter values.\ntransitions : list of dict\n    Transition definitions between compartments."
+        "description": "Information about a predefined epidemic model."
       },
       "PresetsListResponse": {
         "properties": {
@@ -1057,7 +1069,7 @@
           "presets"
         ],
         "title": "PresetsListResponse",
-        "description": "Response listing all available model presets.\n\nAttributes\n----------\npresets : list of PresetInfo\n    List of available model presets."
+        "description": "Response listing all available model presets."
       },
       "SimulationConfig": {
         "properties": {
@@ -1101,7 +1113,7 @@
           "resample_frequency": {
             "type": "string",
             "title": "Resample Frequency",
-            "description": "Resampling frequency.\n\n- `D` - daily\n- `W` - weekly\n- `M` - monthly",
+            "description": "Resampling frequency. `D` = daily, `W` = weekly, `M` = monthly.",
             "default": "D"
           }
         },
@@ -1124,42 +1136,51 @@
                 "type": "null"
               }
             ],
-            "title": "Model Preset"
+            "title": "Model Preset",
+            "description": "Preset name if a preset was used."
           },
           "compartments": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Compartments"
+            "title": "Compartments",
+            "description": "Compartment names in the model."
           },
           "population_name": {
             "type": "string",
-            "title": "Population Name"
+            "title": "Population Name",
+            "description": "Population identifier."
           },
           "population_size": {
             "type": "integer",
-            "title": "Population Size"
+            "title": "Population Size",
+            "description": "Total population size."
           },
           "n_age_groups": {
             "type": "integer",
-            "title": "N Age Groups"
+            "title": "N Age Groups",
+            "description": "Number of age groups."
           },
           "start_date": {
             "type": "string",
-            "title": "Start Date"
+            "title": "Start Date",
+            "description": "Simulation start date."
           },
           "end_date": {
             "type": "string",
-            "title": "End Date"
+            "title": "End Date",
+            "description": "Simulation end date."
           },
           "n_simulations": {
             "type": "integer",
-            "title": "N Simulations"
+            "title": "N Simulations",
+            "description": "Number of simulation runs."
           },
           "dt": {
             "type": "number",
-            "title": "Dt"
+            "title": "Dt",
+            "description": "Time step in days."
           },
           "seed": {
             "anyOf": [
@@ -1170,7 +1191,8 @@
                 "type": "null"
               }
             ],
-            "title": "Seed"
+            "title": "Seed",
+            "description": "Random seed used."
           }
         },
         "type": "object",
@@ -1284,7 +1306,8 @@
         "properties": {
           "simulation_id": {
             "type": "string",
-            "title": "Simulation Id"
+            "title": "Simulation Id",
+            "description": "Unique identifier for this simulation run."
           },
           "status": {
             "type": "string",
@@ -1292,7 +1315,8 @@
               "completed",
               "failed"
             ],
-            "title": "Status"
+            "title": "Status",
+            "description": "Whether the simulation completed successfully."
           },
           "metadata": {
             "$ref": "#/components/schemas/SimulationMetadata"
@@ -1305,7 +1329,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Simulation results. Null if status is `failed`."
           },
           "error": {
             "anyOf": [
@@ -1316,7 +1341,8 @@
                 "type": "null"
               }
             ],
-            "title": "Error"
+            "title": "Error",
+            "description": "Error message if status is `failed`."
           }
         },
         "type": "object",
@@ -1444,7 +1470,8 @@
         "properties": {
           "median": {
             "type": "number",
-            "title": "Median"
+            "title": "Median",
+            "description": "Median value across simulation runs."
           },
           "ci_95": {
             "items": {
@@ -1453,7 +1480,8 @@
             "type": "array",
             "maxItems": 2,
             "minItems": 2,
-            "title": "Ci 95"
+            "title": "Ci 95",
+            "description": "95% confidence interval [lower, upper]."
           }
         },
         "type": "object",
@@ -1549,22 +1577,15 @@
               "mediated"
             ],
             "title": "Kind",
-            "description": "Type of transition: `spontaneous` or `mediated`."
+            "description": "Type of transition.\n- `spontaneous`: rate is a fixed parameter (e.g. recovery, incubation).\n- `mediated`: rate depends on the proportion of a mediating compartment (e.g. transmission driven by contact with infectious individuals)."
           },
           "params": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              }
-            ],
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
             "title": "Params",
-            "description": "Parameter name(s) for this transition.\n\n- **Spontaneous**: a single parameter name, e.g. `\"gamma\"`\n- **Mediated**: `[rate_param, agent_compartment]`, e.g. `[\"beta\", \"I\"]`"
+            "description": "Parameter name(s) governing this transition.\n- Spontaneous: a single parameter name (the rate), e.g. `[\"recovery_rate\"]`.\n- Mediated: a two-element list `[rate_param, mediating_compartment]`, e.g. `[\"transmission_rate\", \"I\"]`.\nA single string is also accepted and will be wrapped into a list."
           }
         },
         "type": "object",
@@ -1575,7 +1596,7 @@
           "params"
         ],
         "title": "TransitionConfig",
-        "description": "A single transition between compartments."
+        "description": "A single transition between compartments. Transitions define how individuals move between compartments, either spontaneously at a fixed rate or mediated by contact with another compartment."
       },
       "TransitionResults": {
         "properties": {
@@ -1602,7 +1623,7 @@
             },
             "type": "object",
             "title": "Data",
-            "description": "Nested structure:\n\n```\ntransition -> age_group -> quantile -> [values]\n```"
+            "description": "Nested structure: `transition -> age_group -> quantile -> [values]`."
           }
         },
         "type": "object",
@@ -1647,5 +1668,29 @@
         "title": "ValidationError"
       }
     }
-  }
+  },
+  "tags": [
+    {
+      "name": "Simulations",
+      "description": "Run stochastic epidemic simulations using preset or custom compartmental models."
+    },
+    {
+      "name": "Populations",
+      "description": "Browse available populations, age group demographics, and contact matrices."
+    },
+    {
+      "name": "Model Presets",
+      "description": "List built-in epidemic models (SIR, SEIR, SIS) with their compartments, parameters, and transitions."
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://epyscenario-api.isi.it",
+      "description": "Production"
+    },
+    {
+      "url": "http://localhost:8000",
+      "description": "Local"
+    }
+  ]
 }

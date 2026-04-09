@@ -4,54 +4,80 @@ This module defines Pydantic models for simulation requests and responses,
 including model configuration, population settings, interventions, and results.
 """
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, Field, model_validator
+
+
+def _ensure_list(v: str | list[str]) -> list[str]:
+    """Accept a single string or a list of strings, always return a list."""
+    if isinstance(v, str):
+        return [v]
+    return v
 
 
 class TransitionConfig(BaseModel):
-    """A single transition between compartments."""
+    """A single transition between compartments. Transitions define how individuals move between compartments, either spontaneously at a fixed rate or mediated by contact with another compartment."""
 
     source: str = Field(..., description="Source compartment name.")
     target: str = Field(..., description="Target compartment name.")
     kind: Literal["spontaneous", "mediated"] = Field(
-        ..., description="Type of transition: `spontaneous` or `mediated`."
-    )
-    params: str | list[str] = Field(
         ...,
         description=(
-            "Parameter name(s) for this transition.\n\n"
-            "- **Spontaneous**: a single parameter name, e.g. `\"gamma\"`\n"
-            "- **Mediated**: `[rate_param, agent_compartment]`, e.g. `[\"beta\", \"I\"]`"
+            "Type of transition.\n"
+            "- `spontaneous`: rate is a fixed parameter (e.g. recovery, incubation).\n"
+            "- `mediated`: rate depends on the proportion of a mediating compartment "
+            "(e.g. transmission driven by contact with infectious individuals)."
+        ),
+    )
+    params: Annotated[list[str], BeforeValidator(_ensure_list)] = Field(
+        ...,
+        description=(
+            "Parameter name(s) governing this transition.\n"
+            "- Spontaneous: a single parameter name (the rate), e.g. `[\"recovery_rate\"]`.\n"
+            "- Mediated: a two-element list `[rate_param, mediating_compartment]`, "
+            "e.g. `[\"transmission_rate\", \"I\"]`.\n"
+            "A single string is also accepted and will be wrapped into a list."
         ),
     )
 
 
 class ModelConfig(BaseModel):
-    """Epidemic model configuration.
-
-    Specify `preset` for a built-in model, or provide both `compartments` and `transitions` for a custom model.
-    """
+    """Epidemic model configuration. Use `preset` for a built-in model (SIR, SEIR, SIS), or provide `compartments`, `parameters`, and `transitions` for a custom model."""
 
     preset: Literal["SIR", "SEIR", "SIS"] | None = Field(
         default=None,
-        description="Predefined model preset (`SIR`, `SEIR`, `SIS`). Auto-configures compartments and transitions.",
+        description=(
+            "Predefined model preset. Auto-configures compartments and transitions.\n"
+            "- `SIR`: Susceptible-Infected-Recovered\n"
+            "- `SEIR`: Susceptible-Exposed-Infected-Recovered\n"
+            "- `SIS`: Susceptible-Infected-Susceptible\n"
+            "When using a preset, you can still override default parameter values via `parameters`."
+        ),
     )
     compartments: list[str] | None = Field(
-        default=None, description="Compartment names. Required if no preset."
+        default=None,
+        description=(
+            "List of compartment names for a custom model. Required if no preset.\n"
+            "Example: `[\"S\", \"E\", \"I\", \"R\", \"H\"]`."
+        ),
     )
     parameters: dict[str, float] = Field(
         default_factory=dict,
         description=(
-            "Model parameters as key-value pairs.\n\n"
-            "Example:\n"
-            "```json\n"
-            "{\"transmission_rate\": 0.3, \"recovery_rate\": 0.1}\n"
-            "```"
+            "Model parameters as key-value pairs. Each key is a parameter name "
+            "referenced by transitions, and the value is its rate.\n"
+            "For presets, these override the default values. "
+            "For custom models, all parameters used in transitions must be defined here.\n"
+            "Example: `{\"transmission_rate\": 0.3, \"recovery_rate\": 0.1}`."
         ),
     )
     transitions: list[TransitionConfig] | None = Field(
-        default=None, description="Transition definitions. Required if no preset."
+        default=None,
+        description=(
+            "List of transitions between compartments. Required if no preset.\n"
+            "Each transition defines how individuals move from one compartment to another."
+        ),
     )
 
     @model_validator(mode="after")
@@ -70,31 +96,17 @@ class PopulationConfig(BaseModel):
     name: str = Field(..., description="Population name, e.g. `United_States`.")
     contacts_source: str | None = Field(
         default=None,
-        description=(
-            "Contact matrix source.\n\n"
-            "Options: `prem_2017`, `prem_2021`, `mistry_2021`."
-        ),
+        description="Contact matrix source.\nOptions: `prem_2017`, `prem_2021`, `mistry_2021`.",
     )
     layers: list[str] | None = Field(
         default=None,
-        description=(
-            "Contact layers to include.\n\n"
-            "Options: `home`, `work`, `school`, `community`."
-        ),
+        description="Contact layers to include.\nOptions: `home`, `work`, `school`, `community`.",
     )
     age_group_mapping: dict[str, list[str]] | None = Field(
         default=None,
         description=(
-            "Custom age group aggregation.\n\n"
-            "Keys are new group names, values are lists of source age groups to merge.\n\n"
-            "Example:\n"
-            "```json\n"
-            "{\n"
-            "  \"0-19\": [\"0-4\", \"5-9\", \"10-14\", \"15-19\"],\n"
-            "  \"20-64\": [\"20-24\", \"25-29\", ...],\n"
-            "  \"65+\": [\"65-69\", \"70-74\", \"75+\"]\n"
-            "}\n"
-            "```"
+            "Custom age group aggregation. Keys are new group names, values are lists of source age groups to merge.\n"
+            "Example: `{\"0-19\": [\"0-4\", \"5-9\", \"10-14\", \"15-19\"], \"65+\": [\"65-69\", \"70-74\", \"75+\"]}`."
         ),
     )
 
@@ -111,12 +123,7 @@ class SimulationConfig(BaseModel):
     )
     resample_frequency: str = Field(
         default="D",
-        description=(
-            "Resampling frequency.\n\n"
-            "- `D` - daily\n"
-            "- `W` - weekly\n"
-            "- `M` - monthly"
-        ),
+        description="Resampling frequency. `D` = daily, `W` = weekly, `M` = monthly.",
     )
 
 
@@ -130,11 +137,8 @@ class InitialConditionsConfig(BaseModel):
         default=None,
         description=(
             "Percentage of population in each compartment. "
-            "Remainder goes to the first compartment.\n\n"
-            "Example:\n"
-            "```json\n"
-            "{\"I\": 0.01, \"R\": 10.0}\n"
-            "```"
+            "Remainder goes to the first compartment.\n"
+            "Example: `{\"I\": 0.01, \"R\": 10.0}`."
         ),
     )
     compartments: dict[str, list[float]] | None = Field(
@@ -262,12 +266,7 @@ class CompartmentResults(BaseModel):
     dates: list[str] = Field(..., description="Dates corresponding to values.")
     data: dict[str, dict[str, dict[str, list[float]]]] = Field(
         ...,
-        description=(
-            "Nested structure:\n\n"
-            "```\n"
-            "compartment -> age_group -> quantile -> [values]\n"
-            "```"
-        ),
+        description="Nested structure: `compartment -> age_group -> quantile -> [values]`.",
     )
 
 
@@ -277,28 +276,23 @@ class TransitionResults(BaseModel):
     dates: list[str] = Field(..., description="Dates corresponding to values.")
     data: dict[str, dict[str, dict[str, list[float]]]] = Field(
         ...,
-        description=(
-            "Nested structure:\n\n"
-            "```\n"
-            "transition -> age_group -> quantile -> [values]\n"
-            "```"
-        ),
+        description="Nested structure: `transition -> age_group -> quantile -> [values]`.",
     )
 
 
 class SummaryStatistic(BaseModel):
     """A summary statistic with median and confidence interval."""
 
-    median: float
-    ci_95: list[float] = Field(..., min_length=2, max_length=2)
+    median: float = Field(..., description="Median value across simulation runs.")
+    ci_95: list[float] = Field(..., min_length=2, max_length=2, description="95% confidence interval [lower, upper].")
 
 
 class PeakStatistic(BaseModel):
     """Peak statistic with date."""
 
-    median: float
-    ci_95: list[float] = Field(..., min_length=2, max_length=2)
-    peak_date: str | None = None
+    median: float = Field(..., description="Median peak value across simulation runs.")
+    ci_95: list[float] = Field(..., min_length=2, max_length=2, description="95% confidence interval [lower, upper].")
+    peak_date: str | None = Field(default=None, description="Date of the median peak.")
 
 
 class SummaryResults(BaseModel):
@@ -348,23 +342,23 @@ class SimulationResultsData(BaseModel):
 class SimulationMetadata(BaseModel):
     """Metadata about the simulation run."""
 
-    model_preset: str | None = None
-    compartments: list[str]
-    population_name: str
-    population_size: int
-    n_age_groups: int
-    start_date: str
-    end_date: str
-    n_simulations: int
-    dt: float
-    seed: int | None = None
+    model_preset: str | None = Field(default=None, description="Preset name if a preset was used.")
+    compartments: list[str] = Field(..., description="Compartment names in the model.")
+    population_name: str = Field(..., description="Population identifier.")
+    population_size: int = Field(..., description="Total population size.")
+    n_age_groups: int = Field(..., description="Number of age groups.")
+    start_date: str = Field(..., description="Simulation start date.")
+    end_date: str = Field(..., description="Simulation end date.")
+    n_simulations: int = Field(..., description="Number of simulation runs.")
+    dt: float = Field(..., description="Time step in days.")
+    seed: int | None = Field(default=None, description="Random seed used.")
 
 
 class SimulationResponse(BaseModel):
     """Complete simulation response."""
 
-    simulation_id: str
-    status: Literal["completed", "failed"]
-    metadata: SimulationMetadata
-    results: SimulationResultsData | None = None
-    error: str | None = None
+    simulation_id: str = Field(..., description="Unique identifier for this simulation run.")
+    status: Literal["completed", "failed"] = Field(..., description="Whether the simulation completed successfully.")
+    metadata: SimulationMetadata = Field(..., description="Metadata about the simulation run.")
+    results: SimulationResultsData | None = Field(default=None, description="Simulation results. Null if status is `failed`.")
+    error: str | None = Field(default=None, description="Error message if status is `failed`.")

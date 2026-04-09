@@ -39,6 +39,24 @@ app = FastAPI(
     redoc_url=f"{settings.api_v1_prefix}/redoc",
     openapi_url=f"{settings.api_v1_prefix}/openapi.json",
     lifespan=lifespan,
+    servers=[
+        {"url": "https://epyscenario-api.isi.it", "description": "Production"},
+        {"url": "http://localhost:8000", "description": "Local"},
+    ],
+    openapi_tags=[
+        {
+            "name": "Simulations",
+            "description": "Run stochastic epidemic simulations using preset or custom compartmental models.",
+        },
+        {
+            "name": "Populations",
+            "description": "Browse available populations, age group demographics, and contact matrices.",
+        },
+        {
+            "name": "Model Presets",
+            "description": "List built-in epidemic models (SIR, SEIR, SIS) with their compartments, parameters, and transitions.",
+        },
+    ],
 )
 
 # CORS middleware

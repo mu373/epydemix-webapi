@@ -1,7 +1,5 @@
 {
-  "installCommand": "bun install",
-  "buildCommand": "bun run build",
-  "outputDirectory": "build",
+  "framework": "docusaurus-2",
   "redirects": [
     { "source": "/", "destination": "/docs", "permanent": true }
   ]

@@ -42,7 +42,16 @@ h2 {
 }
 
 h3 {
-  font-size: 1.05rem;
+  font-size: 1.15rem;
+}
+
+.markdown > h3 {
+  margin-bottom: 0.4rem;
+}
+
+.markdown p + ul,
+.markdown p + ol {
+  margin-top: -1rem;
 }
 
 code {

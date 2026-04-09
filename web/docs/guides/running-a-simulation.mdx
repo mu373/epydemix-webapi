@@ -49,23 +49,54 @@ We'll use the `SIR` preset.
 
 ## 4. Read the response
 
+The response contains `metadata`, `results`, and a `status` field.
+
 ```json
 {
-  "compartments": {
-    "S": [[329000000, 328900000, "..."], "..."],
-    "I": [[1000, 1100, "..."], "..."],
-    "R": [[0, 100, "..."], "..."]
-  },
-  "dates": ["2024-01-01", "2024-01-02", "..."],
+  "simulation_id": "sim_c9617343b215",
+  "status": "completed",
   "metadata": {
-    "Nsim": 10,
-    "model": "SIR",
-    "population": "United_States"
+    "model_preset": "SIR",
+    "compartments": ["Susceptible", "Infected", "Recovered"],
+    "population_name": "United_States",
+    "population_size": 338120586,
+    "n_age_groups": 5,
+    "start_date": "2024-01-01",
+    "end_date": "2024-06-01",
+    "n_simulations": 10,
+    "dt": 1.0,
+    "seed": null
+  },
+  "results": {
+    "compartments": {
+      "dates": ["2024-01-01", "2024-01-02", "..."],
+      "data": {
+        "Susceptible": {
+          "total": {
+            "0.5": [337330136.0, 334286966.0, "..."],
+            "0.025": [337330089.45, 334285584.7, "..."],
+            "0.975": [337330182.55, 334288347.3, "..."]
+          }
+        }
+      }
+    },
+    "transitions": {
+      "dates": ["2024-01-01", "2024-01-02", "..."],
+      "data": {
+        "Susceptible_to_Infected": {
+          "total": {
+            "0.5": [621391.0, 3043170.0, "..."],
+            "0.025": [621344.45, 3041835.25, "..."],
+            "0.975": [621437.55, 3044504.75, "..."]
+          }
+        }
+      }
+    }
   }
 }
 ```
 
-`compartments` contains one array per simulation run. Each array has one value per date.
+Results are organized as quantiles (median, confidence intervals) across simulation runs. Both `compartments` and `transitions` follow the same nested structure: `name -> age_group -> quantile -> [values]`. The `total` age group is the sum across all age groups.
 
 ## 5. Increase Nsim for production use
 

@@ -1,0 +1,76 @@
+---
+sidebar_position: 1
+---
+
+import EndpointSelector from '@site/src/components/EndpointSelector';
+import CurlBlock from '@site/src/components/CurlBlock';
+
+# Running a Simulation
+
+<EndpointSelector />
+
+This guide walks through running your first simulation using the SIR model with US population data.
+
+## 1. Check available populations
+
+<CurlBlock>{`curl BASE_URL/populations`}</CurlBlock>
+
+Pick a population name from the list. We'll use `United_States`.
+
+## 2. Check available presets
+
+<CurlBlock>{`curl BASE_URL/models/presets`}</CurlBlock>
+
+We'll use the `SIR` preset.
+
+## 3. Send a simulation request
+
+<CurlBlock>
+{`curl -X POST BASE_URL/simulations \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": {
+      "preset": "SIR",
+      "parameters": {
+        "transmission_rate": 0.3,
+        "recovery_rate": 0.1
+      }
+    },
+    "population": {
+      "name": "United_States"
+    },
+    "simulation": {
+      "start_date": "2024-01-01",
+      "end_date": "2024-06-01",
+      "Nsim": 10
+    }
+  }'`}
+</CurlBlock>
+
+## 4. Read the response
+
+```json
+{
+  "compartments": {
+    "S": [[329000000, 328900000, "..."], "..."],
+    "I": [[1000, 1100, "..."], "..."],
+    "R": [[0, 100, "..."], "..."]
+  },
+  "dates": ["2024-01-01", "2024-01-02", "..."],
+  "metadata": {
+    "Nsim": 10,
+    "model": "SIR",
+    "population": "United_States"
+  }
+}
+```
+
+`compartments` contains one array per simulation run. Each array has one value per date.
+
+## 5. Increase Nsim for production use
+
+Start with `Nsim: 10` while testing, then increase to 100 or more for reliable estimates.
+
+:::tip
+Use the [API Reference](/api-reference) to build and send requests interactively without writing curl commands.
+:::

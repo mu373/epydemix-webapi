@@ -57,3 +57,8 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Docusaurus
+web/node_modules/
+web/build/
+web/.docusaurus/

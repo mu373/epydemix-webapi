@@ -49,7 +49,7 @@ async def get_populations() -> PopulationListResponse:
 @router.get(
     "/cache",
     response_model=CacheInfoResponse,
-    summary="Get cache status",
+    summary="Get population cache status",
     description="Get information about the population cache.",
 )
 async def get_cache_status() -> CacheInfoResponse:

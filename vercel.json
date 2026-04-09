@@ -1,0 +1,9 @@
+{
+  "rootDirectory": "web",
+  "installCommand": "bun install",
+  "buildCommand": "bun run build",
+  "outputDirectory": "build",
+  "redirects": [
+    { "source": "/", "destination": "/docs", "permanent": true }
+  ]
+}

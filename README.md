@@ -58,6 +58,6 @@ curl -X POST http://localhost:8000/api/v1/simulations \
 
 ## Documentation
 
-API documentation is available at `/api/v1/docs` when running the server.
+API documentation and reference is available [here](https://epydemix-webapi.vercel.app/docs). Alternatively, Swagger UI is also available at `/api/v1/docs` when the server is running.
 
 Most API parameters follow epydemix conventions. Refer to the [epydemix documentation](https://epydemix.readthedocs.io/en/latest/) for details on model parameters, population data, and simulation options.

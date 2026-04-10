@@ -2,6 +2,8 @@
 
 REST API for running epidemic simulations on [epydemix](https://github.com/epistorm/epydemix).
 
+Documentation and API reference: https://epydemix-webapi.vercel.app/docs
+
 ## Quick Start
 
 ```bash

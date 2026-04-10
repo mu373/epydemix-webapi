@@ -1,8 +1,9 @@
-FROM python:3.11-slim
+# Build stage
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Install system dependencies
+# Install build dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         gcc \
@@ -21,6 +22,23 @@ RUN uv sync --frozen --no-dev
 
 # Copy application code
 COPY app/ ./app/
+
+# Runtime stage
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install only runtime dependencies (libopenblas for numpy/scipy)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libopenblas0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Copy venv and app from builder
+COPY --from=builder /app/.venv .venv
+COPY --from=builder /app/app app
 
 # Expose port
 EXPOSE 8000

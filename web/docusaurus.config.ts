@@ -24,7 +24,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/mu373/epydemix-webapi/blob/main/',
+          editUrl: 'https://github.com/mu373/epydemix-webapi/blob/main/web/',
           sidebarCollapsible: false,
         },
         blog: false,

@@ -180,7 +180,7 @@
                 },
                 "examples": {
                   "United_States": {
-                    "summary": "United States (mistry_2021 default source)",
+                    "summary": "United States",
                     "value": {
                       "name": "United_States",
                       "display_name": "United States",

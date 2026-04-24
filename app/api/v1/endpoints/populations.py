@@ -118,7 +118,7 @@ async def get_cache_status() -> CacheInfoResponse:
                 "application/json": {
                     "examples": {
                         "United_States": {
-                            "summary": "United States (mistry_2021 default source)",
+                            "summary": "United States",
                             "value": _UNITED_STATES_DETAIL_EXAMPLE,
                         }
                     }

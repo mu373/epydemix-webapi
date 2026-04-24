@@ -131,7 +131,7 @@
           "Populations"
         ],
         "summary": "Get population details",
-        "description": "Get detailed information about a specific population.",
+        "description": "Get detailed information about a specific population, including total population, population by default age groups, the raw per-single-year age distribution, available contact matrix sources, the default source, and available contact layers.",
         "operationId": "get_population_api_v1_populations__name__get",
         "parameters": [
           {

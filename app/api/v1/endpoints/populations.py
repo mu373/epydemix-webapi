@@ -71,7 +71,11 @@ async def get_cache_status() -> CacheInfoResponse:
     "/{name}",
     response_model=PopulationDetail,
     summary="Get population details",
-    description="Get detailed information about a specific population.",
+    description=(
+        "Get detailed information about a specific population, including total population, "
+        "population by default age groups, the raw per-single-year age distribution, "
+        "available contact matrix sources, the default source, and available contact layers."
+    ),
 )
 async def get_population(
     name: str,
@@ -82,8 +86,9 @@ async def get_population(
 ) -> PopulationDetail:
     """Get detailed information about a population.
 
-    Returns demographic data including total population, age groups,
-    available contact sources, and contact layers.
+    Returns total population, the default 5-group age aggregation, the raw
+    per-single-year age distribution, available contact matrix sources, the
+    default source, and available contact layers.
 
     Parameters
     ----------

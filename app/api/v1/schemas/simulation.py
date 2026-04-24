@@ -374,6 +374,7 @@ class PopulationMetadata(BaseModel):
     age_groups: dict[str, int] = Field(
         ...,
         description="Age group label to population count, e.g. `{\"0-4\": 18608139}`. Keys are in model (age-ascending) order.",
+        examples=[{"0-4": 18608139, "5-19": 63540783, "20-49": 132780169, "50-64": 63172279, "65+": 60019216}],
     )
 
 

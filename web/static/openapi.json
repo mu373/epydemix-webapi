@@ -319,26 +319,50 @@
         "properties": {
           "hits": {
             "type": "integer",
-            "title": "Hits"
+            "title": "Hits",
+            "description": "Number of cache hits.",
+            "examples": [
+              42
+            ]
           },
           "misses": {
             "type": "integer",
-            "title": "Misses"
+            "title": "Misses",
+            "description": "Number of cache misses.",
+            "examples": [
+              8
+            ]
           },
           "maxsize": {
             "type": "integer",
-            "title": "Maxsize"
+            "title": "Maxsize",
+            "description": "Maximum cache size.",
+            "examples": [
+              50
+            ]
           },
           "currsize": {
             "type": "integer",
-            "title": "Currsize"
+            "title": "Currsize",
+            "description": "Current number of cached items.",
+            "examples": [
+              10
+            ]
           },
           "cached_populations": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Cached Populations"
+            "title": "Cached Populations",
+            "description": "Names of populations currently in cache.",
+            "examples": [
+              [
+                "United_States",
+                "Italy",
+                "Germany"
+              ]
+            ]
           }
         },
         "type": "object",
@@ -350,7 +374,7 @@
           "cached_populations"
         ],
         "title": "CacheInfoResponse",
-        "description": "Cache information response schema.\n\nAttributes\n----------\nhits : int\n    Number of cache hits.\nmisses : int\n    Number of cache misses.\nmaxsize : int\n    Maximum cache size.\ncurrsize : int\n    Current number of cached items.\ncached_populations : list of str\n    Names of populations currently in cache."
+        "description": "Cache information response schema."
       },
       "CompartmentResults": {
         "properties": {
@@ -360,7 +384,14 @@
             },
             "type": "array",
             "title": "Dates",
-            "description": "Dates corresponding to values."
+            "description": "Dates corresponding to values.",
+            "examples": [
+              [
+                "2024-01-01",
+                "2024-01-02",
+                "2024-01-03"
+              ]
+            ]
           },
           "data": {
             "additionalProperties": {
@@ -377,7 +408,49 @@
             },
             "type": "object",
             "title": "Data",
-            "description": "Nested structure: `compartment -> age_group -> quantile -> [values]`."
+            "description": "Nested structure: `compartment -> age_group -> quantile -> [values]`.",
+            "examples": [
+              {
+                "Infected": {
+                  "total": {
+                    "0.025": [
+                      621344.45,
+                      3041835.25,
+                      5800000.0
+                    ],
+                    "0.5": [
+                      621391.0,
+                      3043170.0,
+                      5812500.0
+                    ],
+                    "0.975": [
+                      621437.55,
+                      3044504.75,
+                      5825000.0
+                    ]
+                  }
+                },
+                "Susceptible": {
+                  "total": {
+                    "0.025": [
+                      337330089.45,
+                      334285584.7,
+                      331100000.2
+                    ],
+                    "0.5": [
+                      337330136.0,
+                      334286966.0,
+                      331103421.0
+                    ],
+                    "0.975": [
+                      337330182.55,
+                      334288347.3,
+                      331106841.8
+                    ]
+                  }
+                }
+              }
+            ]
           }
         },
         "type": "object",
@@ -393,12 +466,18 @@
           "population_name": {
             "type": "string",
             "title": "Population Name",
-            "description": "Population identifier."
+            "description": "Population identifier.",
+            "examples": [
+              "United_States"
+            ]
           },
           "contact_source": {
             "type": "string",
             "title": "Contact Source",
-            "description": "Contact matrix source used."
+            "description": "Contact matrix source used.",
+            "examples": [
+              "mistry_2021"
+            ]
           },
           "layers": {
             "additionalProperties": {
@@ -412,7 +491,79 @@
             },
             "type": "object",
             "title": "Layers",
-            "description": "Contact matrices by layer name"
+            "description": "Contact matrices by layer name. Each matrix is square with one row/column per age group.",
+            "examples": [
+              {
+                "community": [
+                  [
+                    0.61,
+                    0.88,
+                    0.42
+                  ],
+                  [
+                    0.94,
+                    1.56,
+                    0.67
+                  ],
+                  [
+                    0.51,
+                    0.72,
+                    0.83
+                  ]
+                ],
+                "home": [
+                  [
+                    1.24,
+                    0.87,
+                    0.15
+                  ],
+                  [
+                    0.91,
+                    2.03,
+                    0.34
+                  ],
+                  [
+                    0.19,
+                    0.42,
+                    1.77
+                  ]
+                ],
+                "school": [
+                  [
+                    0.0,
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    5.42,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0,
+                    0.0
+                  ]
+                ],
+                "work": [
+                  [
+                    0.08,
+                    0.41,
+                    0.02
+                  ],
+                  [
+                    0.54,
+                    2.11,
+                    0.17
+                  ],
+                  [
+                    0.03,
+                    0.23,
+                    0.05
+                  ]
+                ]
+              }
+            ]
           },
           "overall": {
             "anyOf": [
@@ -430,7 +581,26 @@
               }
             ],
             "title": "Overall",
-            "description": "Combined contact matrix across all layers"
+            "description": "Combined contact matrix across all layers.",
+            "examples": [
+              [
+                [
+                  1.93,
+                  2.16,
+                  0.59
+                ],
+                [
+                  2.39,
+                  11.12,
+                  1.18
+                ],
+                [
+                  0.73,
+                  1.37,
+                  2.65
+                ]
+              ]
+            ]
           },
           "age_groups": {
             "items": {
@@ -438,7 +608,14 @@
             },
             "type": "array",
             "title": "Age Groups",
-            "description": "Age group labels for matrix indices"
+            "description": "Age group labels for matrix indices (same order as rows and columns).",
+            "examples": [
+              [
+                "0-19",
+                "20-64",
+                "65+"
+              ]
+            ]
           },
           "spectral_radius": {
             "additionalProperties": {
@@ -446,7 +623,16 @@
             },
             "type": "object",
             "title": "Spectral Radius",
-            "description": "Spectral radius (largest eigenvalue) for each layer and overall"
+            "description": "Spectral radius (largest eigenvalue) for each layer and overall.",
+            "examples": [
+              {
+                "community": 2.64,
+                "home": 2.41,
+                "overall": 12.34,
+                "school": 5.42,
+                "work": 2.28
+              }
+            ]
           }
         },
         "type": "object",
@@ -476,11 +662,19 @@
         "properties": {
           "status": {
             "type": "string",
-            "title": "Status"
+            "title": "Status",
+            "description": "Health status.",
+            "examples": [
+              "healthy"
+            ]
           },
           "version": {
             "type": "string",
-            "title": "Version"
+            "title": "Version",
+            "description": "API version string.",
+            "examples": [
+              "0.2.2"
+            ]
           },
           "epydemix_version": {
             "anyOf": [
@@ -491,7 +685,11 @@
                 "type": "null"
               }
             ],
-            "title": "Epydemix Version"
+            "title": "Epydemix Version",
+            "description": "Version of the epydemix library, or None if not available.",
+            "examples": [
+              "0.3.4"
+            ]
           }
         },
         "type": "object",
@@ -500,7 +698,7 @@
           "version"
         ],
         "title": "HealthResponse",
-        "description": "Health check response schema.\n\nAttributes\n----------\nstatus : str\n    Health status (e.g., 'healthy').\nversion : str\n    API version string.\nepydemix_version : str or None\n    Version of the epydemix library, or None if not available."
+        "description": "Health check response schema."
       },
       "InitialConditionsConfig": {
         "properties": {
@@ -673,7 +871,10 @@
               }
             ],
             "title": "Preset",
-            "description": "Preset name if a preset was used."
+            "description": "Preset name if a preset was used.",
+            "examples": [
+              "SIR"
+            ]
           },
           "compartments": {
             "items": {
@@ -681,7 +882,14 @@
             },
             "type": "array",
             "title": "Compartments",
-            "description": "Compartment names in the model."
+            "description": "Compartment names in the model.",
+            "examples": [
+              [
+                "Susceptible",
+                "Infected",
+                "Recovered"
+              ]
+            ]
           }
         },
         "type": "object",
@@ -816,7 +1024,14 @@
             },
             "type": "object",
             "title": "Quantiles",
-            "description": "Peak value per quantile, e.g. `{\"0.025\": ..., \"0.5\": ..., \"0.975\": ...}`."
+            "description": "Peak value per quantile, e.g. `{\"0.025\": ..., \"0.5\": ..., \"0.975\": ...}`.",
+            "examples": [
+              {
+                "0.025": 12200000.0,
+                "0.5": 12400000.0,
+                "0.975": 12600000.0
+              }
+            ]
           },
           "peak_date": {
             "anyOf": [
@@ -828,7 +1043,10 @@
               }
             ],
             "title": "Peak Date",
-            "description": "Date of the peak from the median trajectory."
+            "description": "Date of the peak from the median trajectory.",
+            "examples": [
+              "2024-02-14"
+            ]
           }
         },
         "type": "object",
@@ -903,17 +1121,26 @@
           "name": {
             "type": "string",
             "title": "Name",
-            "description": "Population identifier."
+            "description": "Population identifier.",
+            "examples": [
+              "United_States"
+            ]
           },
           "display_name": {
             "type": "string",
             "title": "Display Name",
-            "description": "Human-readable name."
+            "description": "Human-readable name.",
+            "examples": [
+              "United States"
+            ]
           },
           "total_population": {
             "type": "integer",
             "title": "Total Population",
-            "description": "Total population size."
+            "description": "Total population size.",
+            "examples": [
+              338120586
+            ]
           },
           "age_groups": {
             "additionalProperties": {
@@ -938,7 +1165,14 @@
             },
             "type": "array",
             "title": "Contact Sources",
-            "description": "Available contact matrix sources."
+            "description": "Available contact matrix sources.",
+            "examples": [
+              [
+                "prem_2017",
+                "prem_2021",
+                "mistry_2021"
+              ]
+            ]
           },
           "default_contact_source": {
             "anyOf": [
@@ -950,7 +1184,10 @@
               }
             ],
             "title": "Default Contact Source",
-            "description": "Default contact source for this population."
+            "description": "Default contact source for this population.",
+            "examples": [
+              "mistry_2021"
+            ]
           },
           "available_layers": {
             "items": {
@@ -958,7 +1195,15 @@
             },
             "type": "array",
             "title": "Available Layers",
-            "description": "Available contact layers (e.g. home, work, school, community)."
+            "description": "Available contact layers (e.g. home, work, school, community).",
+            "examples": [
+              [
+                "home",
+                "work",
+                "school",
+                "community"
+              ]
+            ]
           }
         },
         "type": "object",
@@ -984,7 +1229,11 @@
           },
           "total": {
             "type": "integer",
-            "title": "Total"
+            "title": "Total",
+            "description": "Total number of populations.",
+            "examples": [
+              152
+            ]
           }
         },
         "type": "object",
@@ -1000,7 +1249,10 @@
           "name": {
             "type": "string",
             "title": "Name",
-            "description": "Population identifier."
+            "description": "Population identifier.",
+            "examples": [
+              "United_States"
+            ]
           },
           "contacts_source": {
             "anyOf": [
@@ -1012,7 +1264,10 @@
               }
             ],
             "title": "Contacts Source",
-            "description": "Resolved contact matrix source actually used."
+            "description": "Resolved contact matrix source actually used.",
+            "examples": [
+              "mistry_2021"
+            ]
           },
           "layers": {
             "anyOf": [
@@ -1027,7 +1282,15 @@
               }
             ],
             "title": "Layers",
-            "description": "Resolved contact layers actually used."
+            "description": "Resolved contact layers actually used.",
+            "examples": [
+              [
+                "home",
+                "work",
+                "school",
+                "community"
+              ]
+            ]
           },
           "age_group_mapping": {
             "anyOf": [
@@ -1045,12 +1308,30 @@
               }
             ],
             "title": "Age Group Mapping",
-            "description": "Custom age group aggregation, echoed back if the request supplied one."
+            "description": "Custom age group aggregation, echoed back if the request supplied one.",
+            "examples": [
+              {
+                "0-19": [
+                  "0-4",
+                  "5-9",
+                  "10-14",
+                  "15-19"
+                ],
+                "20+": [
+                  "20-24",
+                  "25-29",
+                  "30-34"
+                ]
+              }
+            ]
           },
           "total": {
             "type": "integer",
             "title": "Total",
-            "description": "Total population size."
+            "description": "Total population size.",
+            "examples": [
+              338120586
+            ]
           },
           "age_groups": {
             "additionalProperties": {
@@ -1084,12 +1365,18 @@
           "name": {
             "type": "string",
             "title": "Name",
-            "description": "Population identifier (e.g., 'United_States')"
+            "description": "Population identifier (e.g., 'United_States')",
+            "examples": [
+              "United_States"
+            ]
           },
           "display_name": {
             "type": "string",
             "title": "Display Name",
-            "description": "Human-readable name"
+            "description": "Human-readable name",
+            "examples": [
+              "United States"
+            ]
           },
           "total_population": {
             "anyOf": [
@@ -1101,7 +1388,10 @@
               }
             ],
             "title": "Total Population",
-            "description": "Total population size"
+            "description": "Total population size",
+            "examples": [
+              338120586
+            ]
           },
           "n_age_groups": {
             "anyOf": [
@@ -1113,7 +1403,10 @@
               }
             ],
             "title": "N Age Groups",
-            "description": "Number of age groups"
+            "description": "Number of age groups",
+            "examples": [
+              5
+            ]
           },
           "available_contact_sources": {
             "items": {
@@ -1121,7 +1414,14 @@
             },
             "type": "array",
             "title": "Available Contact Sources",
-            "description": "Available contact matrix sources"
+            "description": "Available contact matrix sources",
+            "examples": [
+              [
+                "prem_2017",
+                "prem_2021",
+                "mistry_2021"
+              ]
+            ]
           }
         },
         "type": "object",
@@ -1137,12 +1437,18 @@
           "name": {
             "type": "string",
             "title": "Name",
-            "description": "Preset name (e.g., 'SIR', 'SEIR')"
+            "description": "Preset name (e.g., 'SIR', 'SEIR')",
+            "examples": [
+              "SIR"
+            ]
           },
           "description": {
             "type": "string",
             "title": "Description",
-            "description": "Description of the model"
+            "description": "Description of the model.",
+            "examples": [
+              "Susceptible-Infected-Recovered compartmental model."
+            ]
           },
           "compartments": {
             "items": {
@@ -1150,7 +1456,14 @@
             },
             "type": "array",
             "title": "Compartments",
-            "description": "Compartment names"
+            "description": "Compartment names.",
+            "examples": [
+              [
+                "Susceptible",
+                "Infected",
+                "Recovered"
+              ]
+            ]
           },
           "parameters": {
             "additionalProperties": {
@@ -1158,7 +1471,13 @@
             },
             "type": "object",
             "title": "Parameters",
-            "description": "Default parameter values"
+            "description": "Default parameter values.",
+            "examples": [
+              {
+                "recovery_rate": 0.1,
+                "transmission_rate": 0.3
+              }
+            ]
           },
           "transitions": {
             "items": {
@@ -1167,7 +1486,28 @@
             },
             "type": "array",
             "title": "Transitions",
-            "description": "Transition definitions"
+            "description": "Transition definitions.",
+            "examples": [
+              [
+                {
+                  "kind": "mediated",
+                  "params": [
+                    "transmission_rate",
+                    "Infected"
+                  ],
+                  "source": "Susceptible",
+                  "target": "Infected"
+                },
+                {
+                  "kind": "spontaneous",
+                  "params": [
+                    "recovery_rate"
+                  ],
+                  "source": "Infected",
+                  "target": "Recovered"
+                }
+              ]
+            ]
           }
         },
         "type": "object",
@@ -1355,7 +1695,10 @@
           "simulation_id": {
             "type": "string",
             "title": "Simulation Id",
-            "description": "Unique identifier for this simulation run."
+            "description": "Unique identifier for this simulation run.",
+            "examples": [
+              "sim_c9617343b215"
+            ]
           },
           "status": {
             "type": "string",
@@ -1364,7 +1707,10 @@
               "failed"
             ],
             "title": "Status",
-            "description": "Whether the simulation completed successfully."
+            "description": "Whether the simulation completed successfully.",
+            "examples": [
+              "completed"
+            ]
           },
           "metadata": {
             "$ref": "#/components/schemas/SimulationMetadata",
@@ -1391,7 +1737,10 @@
               }
             ],
             "title": "Error",
-            "description": "Error message if status is `failed`."
+            "description": "Error message if status is `failed`.",
+            "examples": [
+              null
+            ]
           }
         },
         "type": "object",
@@ -1446,22 +1795,34 @@
           "start_date": {
             "type": "string",
             "title": "Start Date",
-            "description": "Simulation start date."
+            "description": "Simulation start date.",
+            "examples": [
+              "2024-01-01"
+            ]
           },
           "end_date": {
             "type": "string",
             "title": "End Date",
-            "description": "Simulation end date."
+            "description": "Simulation end date.",
+            "examples": [
+              "2024-06-01"
+            ]
           },
           "Nsim": {
             "type": "integer",
             "title": "Nsim",
-            "description": "Number of simulation runs."
+            "description": "Number of simulation runs.",
+            "examples": [
+              10
+            ]
           },
           "dt": {
             "type": "number",
             "title": "Dt",
-            "description": "Time step in days."
+            "description": "Time step in days.",
+            "examples": [
+              1.0
+            ]
           },
           "seed": {
             "anyOf": [
@@ -1473,12 +1834,18 @@
               }
             ],
             "title": "Seed",
-            "description": "Random seed used."
+            "description": "Random seed used.",
+            "examples": [
+              42
+            ]
           },
           "resample_frequency": {
             "type": "string",
             "title": "Resample Frequency",
-            "description": "Resampling frequency."
+            "description": "Resampling frequency.",
+            "examples": [
+              "D"
+            ]
           }
         },
         "type": "object",
@@ -1500,7 +1867,14 @@
             },
             "type": "object",
             "title": "Quantiles",
-            "description": "Quantile to value mapping, e.g. `{\"0.025\": ..., \"0.5\": ..., \"0.975\": ...}`."
+            "description": "Quantile to value mapping, e.g. `{\"0.025\": ..., \"0.5\": ..., \"0.975\": ...}`.",
+            "examples": [
+              {
+                "0.025": 213000000.0,
+                "0.5": 215000000.0,
+                "0.975": 217000000.0
+              }
+            ]
           }
         },
         "type": "object",
@@ -1565,7 +1939,29 @@
               }
             ],
             "title": "Peaks",
-            "description": "Peak statistics: `compartment -> age_group -> {quantiles, peak_date}`."
+            "description": "Peak statistics: `compartment -> age_group -> {quantiles, peak_date}`.",
+            "examples": [
+              {
+                "Infected": {
+                  "0-4": {
+                    "peak_date": "2024-02-13",
+                    "quantiles": {
+                      "0.025": 410000.0,
+                      "0.5": 420000.0,
+                      "0.975": 435000.0
+                    }
+                  },
+                  "total": {
+                    "peak_date": "2024-02-14",
+                    "quantiles": {
+                      "0.025": 12200000.0,
+                      "0.5": 12400000.0,
+                      "0.975": 12600000.0
+                    }
+                  }
+                }
+              }
+            ]
           },
           "totals": {
             "anyOf": [
@@ -1583,7 +1979,27 @@
               }
             ],
             "title": "Totals",
-            "description": "Cumulative transition totals: `transition -> age_group -> {quantiles}`."
+            "description": "Cumulative transition totals: `transition -> age_group -> {quantiles}`.",
+            "examples": [
+              {
+                "Susceptible_to_Infected": {
+                  "0-4": {
+                    "quantiles": {
+                      "0.025": 11700000.0,
+                      "0.5": 11800000.0,
+                      "0.975": 11900000.0
+                    }
+                  },
+                  "total": {
+                    "quantiles": {
+                      "0.025": 213000000.0,
+                      "0.5": 215000000.0,
+                      "0.975": 217000000.0
+                    }
+                  }
+                }
+              }
+            ]
           }
         },
         "type": "object",
@@ -1598,7 +2014,14 @@
             },
             "type": "array",
             "title": "Dates",
-            "description": "Dates corresponding to values."
+            "description": "Dates corresponding to values.",
+            "examples": [
+              [
+                "2024-01-01",
+                "2024-01-02",
+                "2024-01-03"
+              ]
+            ]
           },
           "runs": {
             "items": {
@@ -1631,7 +2054,32 @@
             },
             "type": "object",
             "title": "Compartments",
-            "description": "Compartment values: `{compartment: {age_group: [values]}}`."
+            "description": "Compartment values: `{compartment: {age_group: [values]}}`.",
+            "examples": [
+              {
+                "Infected": {
+                  "total": [
+                    621391.0,
+                    3043170.0,
+                    5812500.0
+                  ]
+                },
+                "Recovered": {
+                  "total": [
+                    0.0,
+                    20000.0,
+                    145000.0
+                  ]
+                },
+                "Susceptible": {
+                  "total": [
+                    337330136.0,
+                    334286966.0,
+                    331103421.0
+                  ]
+                }
+              }
+            ]
           },
           "transitions": {
             "additionalProperties": {
@@ -1645,7 +2093,25 @@
             },
             "type": "object",
             "title": "Transitions",
-            "description": "Transition counts: `{transition: {age_group: [values]}}`."
+            "description": "Transition counts: `{transition: {age_group: [values]}}`.",
+            "examples": [
+              {
+                "Infected_to_Recovered": {
+                  "total": [
+                    0.0,
+                    20000.0,
+                    145000.0
+                  ]
+                },
+                "Susceptible_to_Infected": {
+                  "total": [
+                    621391.0,
+                    3043170.0,
+                    5812500.0
+                  ]
+                }
+              }
+            ]
           }
         },
         "type": "object",
@@ -1704,7 +2170,14 @@
             },
             "type": "array",
             "title": "Dates",
-            "description": "Dates corresponding to values."
+            "description": "Dates corresponding to values.",
+            "examples": [
+              [
+                "2024-01-01",
+                "2024-01-02",
+                "2024-01-03"
+              ]
+            ]
           },
           "data": {
             "additionalProperties": {
@@ -1721,7 +2194,30 @@
             },
             "type": "object",
             "title": "Data",
-            "description": "Nested structure: `transition -> age_group -> quantile -> [values]`."
+            "description": "Nested structure: `transition -> age_group -> quantile -> [values]`.",
+            "examples": [
+              {
+                "Susceptible_to_Infected": {
+                  "total": {
+                    "0.025": [
+                      621344.45,
+                      3041835.25,
+                      5800000.0
+                    ],
+                    "0.5": [
+                      621391.0,
+                      3043170.0,
+                      5812500.0
+                    ],
+                    "0.975": [
+                      621437.55,
+                      3044504.75,
+                      5825000.0
+                    ]
+                  }
+                }
+              }
+            ]
           }
         },
         "type": "object",

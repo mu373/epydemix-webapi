@@ -7,6 +7,7 @@ retrieving population details, and accessing contact matrices.
 import functools
 import logging
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
+from pathlib import Path
 
 import numpy as np
 from epydemix.population.population import (
@@ -16,7 +17,6 @@ from epydemix.population.population import (
 )
 
 from ..api.v1.schemas.population import (
-    AgeGroupInfo,
     ContactMatrixResponse,
     PopulationDetail,
     PopulationListResponse,
@@ -52,9 +52,71 @@ def get_locations_df():
     return get_available_locations()
 
 
-# Cache for population metadata (total_population, n_age_groups)
-# Populated by warm_cache() or on individual population loads
+# Cache of per-population metadata (total_population, age_groups).
+# Seeded from the precomputed CSV at module import; subsequent live loads
+# (via _load_population_cached) keep it up to date.
 _population_metadata_cache: dict[str, dict] = {}
+
+_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+_PRECOMPUTED_METADATA_PATH = _DATA_DIR / "population_metadata.csv"
+_PRECOMPUTED_AGE_DISTRIBUTION_PATH = _DATA_DIR / "population_age_distribution.csv"
+
+
+def _read_long_csv(path: Path, label_column: str) -> dict[str, dict[str, int]]:
+    """Read a ``name,<label>,population`` CSV into ``{name: {label: population}}``.
+
+    Preserves row-insertion order within each population so downstream consumers
+    can rely on age-ascending ordering if the file was written that way.
+    """
+    import csv
+
+    result: dict[str, dict[str, int]] = {}
+    with path.open(newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            name = row["name"]
+            result.setdefault(name, {})[row[label_column]] = int(row["population"])
+    return result
+
+
+def _load_precomputed_metadata(
+    aggregated_path: Path = _PRECOMPUTED_METADATA_PATH,
+    raw_path: Path = _PRECOMPUTED_AGE_DISTRIBUTION_PATH,
+) -> None:
+    """Seed ``_population_metadata_cache`` from the precomputed CSVs.
+
+    ``aggregated_path`` carries the default 5-group ``age_groups`` per population.
+    ``raw_path`` carries the raw single-year ``age_distribution``. Either file
+    missing just means those fields stay empty until the relevant population is
+    loaded on demand.
+    """
+    if aggregated_path.exists():
+        age_groups_by_name = _read_long_csv(aggregated_path, "age_group")
+        for name, age_groups in age_groups_by_name.items():
+            entry = _population_metadata_cache.setdefault(name, {})
+            entry["total_population"] = sum(age_groups.values())
+            entry["age_groups"] = age_groups
+        logger.info(
+            "Loaded precomputed aggregated metadata for %d populations from %s",
+            len(age_groups_by_name), aggregated_path.name,
+        )
+    else:
+        logger.warning("Precomputed metadata CSV not found at %s", aggregated_path)
+
+    if raw_path.exists():
+        distribution_by_name = _read_long_csv(raw_path, "age")
+        for name, distribution in distribution_by_name.items():
+            entry = _population_metadata_cache.setdefault(name, {})
+            entry["age_distribution"] = distribution
+        logger.info(
+            "Loaded precomputed age distribution for %d populations from %s",
+            len(distribution_by_name), raw_path.name,
+        )
+    else:
+        logger.warning("Precomputed age distribution CSV not found at %s", raw_path)
+
+
+_load_precomputed_metadata()
 
 
 def list_populations() -> PopulationListResponse:
@@ -90,14 +152,12 @@ def list_populations() -> PopulationListResponse:
         # Get cached metadata if available
         metadata = _population_metadata_cache.get(name, {})
         total_pop = metadata.get("total_population")
-        n_groups = metadata.get("n_age_groups")
 
         populations.append(
             PopulationSummary(
                 name=name,
                 display_name=str(name).replace("_", " "),
                 total_population=total_pop,
-                n_age_groups=n_groups,
                 available_contact_sources=available_sources,
             )
         )
@@ -197,10 +257,11 @@ def _load_population_cached(
             future.cancel()
             raise PopulationLoadTimeoutError(name, timeout)
 
-    # Update metadata cache
-    _population_metadata_cache[name] = {
-        "total_population": int(pop.total_population),
-        "n_age_groups": len(pop.Nk),
+    # Update metadata cache. Preserve any precomputed fields (e.g. age_distribution).
+    entry = _population_metadata_cache.setdefault(name, {})
+    entry["total_population"] = int(pop.total_population)
+    entry["age_groups"] = {
+        str(label): int(count) for label, count in zip(pop.Nk_names, pop.Nk)
     }
 
     return pop
@@ -231,10 +292,10 @@ def get_population_detail(name: str, contacts_source: str | None = None) -> Popu
     """
     pop = _load_population_cached(name, contacts_source)
 
-    age_groups = [
-        AgeGroupInfo(name=str(ag_name), population=int(pop_count))
+    age_groups = {
+        str(ag_name): int(pop_count)
         for ag_name, pop_count in zip(pop.Nk_names, pop.Nk)
-    ]
+    }
 
     # Get available contact sources from locations df
     df = get_locations_df()
@@ -252,11 +313,14 @@ def get_population_detail(name: str, contacts_source: str | None = None) -> Popu
     if not available_sources:
         available_sources = ["mistry_2021"]
 
+    age_distribution = _population_metadata_cache.get(name, {}).get("age_distribution", {})
+
     return PopulationDetail(
         name=name,
         display_name=name.replace("_", " "),
         total_population=int(pop.total_population),
         age_groups=age_groups,
+        age_distribution=age_distribution,
         contact_sources=available_sources,
         default_contact_source=default_source,
         available_layers=pop.layers,

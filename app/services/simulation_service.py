@@ -11,7 +11,6 @@ from epydemix.model.epimodel import EpiModel
 from epydemix.model.predefined_models import load_predefined_model
 from epydemix.population.population import load_epydemix_population
 
-from ..api.v1.schemas.population import AgeGroupInfo
 from ..api.v1.schemas.simulation import (
     InitialConditionsConfig,
     InterventionConfig,
@@ -36,10 +35,10 @@ def _build_population_metadata(
     model_population,
 ) -> PopulationMetadata:
     """Build PopulationMetadata from the request and the loaded model population."""
-    age_groups = [
-        AgeGroupInfo(name=str(name), population=int(count))
+    age_groups = {
+        str(name): int(count)
         for name, count in zip(model_population.Nk_names, model_population.Nk)
-    ]
+    }
     return PopulationMetadata(
         name=request_population.name,
         contacts_source=_resolve_contacts_source(
@@ -345,7 +344,7 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
                     layers=request.population.layers,
                     age_group_mapping=request.population.age_group_mapping,
                     total=0,
-                    age_groups=[],
+                    age_groups={},
                 ),
                 simulation=_build_run_metadata(request),
             ),

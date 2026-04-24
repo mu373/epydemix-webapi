@@ -183,43 +183,61 @@ class ParameterOverrideConfig(BaseModel):
 
 
 class SummaryConfig(BaseModel):
-    """Configuration for summary statistics."""
+    """Configuration for summary statistics.
+
+    Summary is returned by default for every compartment and transition, broken
+    down by age group and by the quantiles requested in `output.quantiles`.
+    Use the fields below to narrow that down."""
 
     peak_compartments: list[str] | None = Field(
         default=None,
-        description="Compartments to compute peak statistics for. Returns peak value, CI, and peak date.",
+        description=(
+            "Base compartment names to compute peak statistics for. "
+            "Omit to include every compartment; pass `[]` to explicitly skip peak stats. "
+            "Per-quantile peak values and the median-trajectory peak date are returned for each included age group."
+        ),
     )
     total_transitions: list[str] | None = Field(
         default=None,
-        description="Transitions to compute cumulative totals for. Returns median and CI.",
+        description=(
+            "Base transition names (e.g. `Susceptible_to_Infected`) to compute cumulative totals for. "
+            "Omit to include every transition; pass `[]` to explicitly skip totals. "
+            "Per-quantile total event counts are returned for each included age group."
+        ),
     )
 
 
 class OutputConfig(BaseModel):
-    """Output configuration."""
+    """Output configuration. Everything is optional; defaults return all compartments, all transitions, all age groups (including `total`), all standard quantiles, and a populated `summary`."""
 
     quantiles: list[float] | None = Field(
         default=None,
-        description="Quantiles to compute. Default: `[0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975]`.",
+        description=(
+            "Quantiles to compute for trajectories and summary. "
+            "Default: `[0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975]`."
+        ),
     )
     include_trajectories: bool = Field(
-        default=False, description="Include raw trajectory data (can be large)."
+        default=False, description="Include raw per-run trajectory data in the response. Can be large."
     )
     compartments: list[str] | None = Field(
         default=None,
-        description="Compartments to include in output. Default: all.",
+        description="Compartments to include in the trajectory section. Default: all. Does not affect `summary`.",
     )
     transitions: list[str] | None = Field(
         default=None,
-        description="Transitions to include in output. Default: all.",
+        description="Transitions to include in the trajectory section. Default: all. Does not affect `summary`.",
     )
     age_groups: list[str] | None = Field(
         default=None,
-        description="Age groups to include, e.g. `[\"0-4\", \"5-19\", \"total\"]`. Default: all.",
+        description=(
+            "Age groups to include in both trajectories and summary, "
+            "e.g. `[\"0-4\", \"5-19\", \"total\"]`. Default: all age groups plus `total`."
+        ),
     )
     summary: SummaryConfig | None = Field(
         default=None,
-        description="Summary statistics configuration.",
+        description="Summary statistics configuration. Omit to return the default summary.",
     )
 
 

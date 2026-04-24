@@ -727,12 +727,12 @@
               }
             ],
             "title": "Quantiles",
-            "description": "Quantiles to compute. Default: `[0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975]`."
+            "description": "Quantiles to compute for trajectories and summary. Default: `[0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975]`."
           },
           "include_trajectories": {
             "type": "boolean",
             "title": "Include Trajectories",
-            "description": "Include raw trajectory data (can be large).",
+            "description": "Include raw per-run trajectory data in the response. Can be large.",
             "default": false
           },
           "compartments": {
@@ -748,7 +748,7 @@
               }
             ],
             "title": "Compartments",
-            "description": "Compartments to include in output. Default: all."
+            "description": "Compartments to include in the trajectory section. Default: all. Does not affect `summary`."
           },
           "transitions": {
             "anyOf": [
@@ -763,7 +763,7 @@
               }
             ],
             "title": "Transitions",
-            "description": "Transitions to include in output. Default: all."
+            "description": "Transitions to include in the trajectory section. Default: all. Does not affect `summary`."
           },
           "age_groups": {
             "anyOf": [
@@ -778,7 +778,7 @@
               }
             ],
             "title": "Age Groups",
-            "description": "Age groups to include, e.g. `[\"0-4\", \"5-19\", \"total\"]`. Default: all."
+            "description": "Age groups to include in both trajectories and summary, e.g. `[\"0-4\", \"5-19\", \"total\"]`. Default: all age groups plus `total`."
           },
           "summary": {
             "anyOf": [
@@ -789,12 +789,12 @@
                 "type": "null"
               }
             ],
-            "description": "Summary statistics configuration."
+            "description": "Summary statistics configuration. Omit to return the default summary."
           }
         },
         "type": "object",
         "title": "OutputConfig",
-        "description": "Output configuration."
+        "description": "Output configuration. Everything is optional; defaults return all compartments, all transitions, all age groups (including `total`), all standard quantiles, and a populated `summary`."
       },
       "ParameterOverrideConfig": {
         "properties": {
@@ -1528,7 +1528,7 @@
               }
             ],
             "title": "Peak Compartments",
-            "description": "Compartments to compute peak statistics for. Returns peak value, CI, and peak date."
+            "description": "Base compartment names to compute peak statistics for. Omit to include every compartment; pass `[]` to explicitly skip peak stats. Per-quantile peak values and the median-trajectory peak date are returned for each included age group."
           },
           "total_transitions": {
             "anyOf": [
@@ -1543,12 +1543,12 @@
               }
             ],
             "title": "Total Transitions",
-            "description": "Transitions to compute cumulative totals for. Returns median and CI."
+            "description": "Base transition names (e.g. `Susceptible_to_Infected`) to compute cumulative totals for. Omit to include every transition; pass `[]` to explicitly skip totals. Per-quantile total event counts are returned for each included age group."
           }
         },
         "type": "object",
         "title": "SummaryConfig",
-        "description": "Configuration for summary statistics."
+        "description": "Configuration for summary statistics.\n\nSummary is returned by default for every compartment and transition, broken\ndown by age group and by the quantiles requested in `output.quantiles`.\nUse the fields below to narrow that down."
       },
       "SummaryResults": {
         "properties": {

@@ -56,16 +56,32 @@ The response contains `metadata`, `results`, and a `status` field.
   "simulation_id": "sim_c9617343b215",
   "status": "completed",
   "metadata": {
-    "model_preset": "SIR",
-    "compartments": ["Susceptible", "Infected", "Recovered"],
-    "population_name": "United_States",
-    "population_size": 338120586,
-    "n_age_groups": 5,
-    "start_date": "2024-01-01",
-    "end_date": "2024-06-01",
-    "n_simulations": 10,
-    "dt": 1.0,
-    "seed": null
+    "model": {
+      "preset": "SIR",
+      "compartments": ["Susceptible", "Infected", "Recovered"]
+    },
+    "population": {
+      "name": "United_States",
+      "contacts_source": "mistry_2021",
+      "layers": ["home", "work", "school", "community"],
+      "age_group_mapping": null,
+      "total": 338120586,
+      "age_groups": [
+        { "name": "0-4", "population": 18608139 },
+        { "name": "5-19", "population": 63540783 },
+        { "name": "20-49", "population": 132780169 },
+        { "name": "50-64", "population": 63172279 },
+        { "name": "65+", "population": 60019216 }
+      ]
+    },
+    "simulation": {
+      "start_date": "2024-01-01",
+      "end_date": "2024-06-01",
+      "Nsim": 10,
+      "dt": 1.0,
+      "seed": null,
+      "resample_frequency": "D"
+    }
   },
   "results": {
     "compartments": {

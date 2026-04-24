@@ -3,8 +3,18 @@
   "info": {
     "title": "epydemix WebAPI",
     "description": "REST API for running epidemic simulations with epydemix",
-    "version": "0.1.1"
+    "version": "0.2.0"
   },
+  "servers": [
+    {
+      "url": "https://epyscenario-api.isi.it",
+      "description": "Production"
+    },
+    {
+      "url": "http://localhost:8000",
+      "description": "Local"
+    }
+  ],
   "paths": {
     "/api/v1/simulations": {
       "post": {
@@ -649,6 +659,36 @@
         "title": "ModelConfig",
         "description": "Epidemic model configuration. Use `preset` for a built-in model (SIR, SEIR, SIS), or provide `compartments`, `parameters`, and `transitions` for a custom model."
       },
+      "ModelMetadata": {
+        "properties": {
+          "preset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preset",
+            "description": "Preset name if a preset was used."
+          },
+          "compartments": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Compartments",
+            "description": "Compartment names in the model."
+          }
+        },
+        "type": "object",
+        "required": [
+          "compartments"
+        ],
+        "title": "ModelMetadata",
+        "description": "Model section of simulation metadata. Mirrors the `model` section of the request."
+      },
       "OutputConfig": {
         "properties": {
           "quantiles": {
@@ -952,6 +992,81 @@
         "title": "PopulationListResponse",
         "description": "Response for listing all available populations."
       },
+      "PopulationMetadata": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Population identifier."
+          },
+          "contacts_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contacts Source",
+            "description": "Resolved contact matrix source actually used."
+          },
+          "layers": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layers",
+            "description": "Resolved contact layers actually used."
+          },
+          "age_group_mapping": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Group Mapping",
+            "description": "Custom age group aggregation, echoed back if the request supplied one."
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Total population size."
+          },
+          "age_groups": {
+            "items": {
+              "$ref": "#/components/schemas/AgeGroupInfo"
+            },
+            "type": "array",
+            "title": "Age Groups",
+            "description": "Population count per age group, in model order."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "total",
+          "age_groups"
+        ],
+        "title": "PopulationMetadata",
+        "description": "Population section of simulation metadata. Mirrors the `population` section of the request and adds resolved/derived values."
+      },
       "PopulationSummary": {
         "properties": {
           "name": {
@@ -1127,87 +1242,27 @@
       },
       "SimulationMetadata": {
         "properties": {
-          "model_preset": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Model Preset",
-            "description": "Preset name if a preset was used."
+          "model": {
+            "$ref": "#/components/schemas/ModelMetadata",
+            "description": "Model configuration used for the run."
           },
-          "compartments": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Compartments",
-            "description": "Compartment names in the model."
+          "population": {
+            "$ref": "#/components/schemas/PopulationMetadata",
+            "description": "Resolved population configuration and derived counts."
           },
-          "population_name": {
-            "type": "string",
-            "title": "Population Name",
-            "description": "Population identifier."
-          },
-          "population_size": {
-            "type": "integer",
-            "title": "Population Size",
-            "description": "Total population size."
-          },
-          "n_age_groups": {
-            "type": "integer",
-            "title": "N Age Groups",
-            "description": "Number of age groups."
-          },
-          "start_date": {
-            "type": "string",
-            "title": "Start Date",
-            "description": "Simulation start date."
-          },
-          "end_date": {
-            "type": "string",
-            "title": "End Date",
-            "description": "Simulation end date."
-          },
-          "n_simulations": {
-            "type": "integer",
-            "title": "N Simulations",
-            "description": "Number of simulation runs."
-          },
-          "dt": {
-            "type": "number",
-            "title": "Dt",
-            "description": "Time step in days."
-          },
-          "seed": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Seed",
-            "description": "Random seed used."
+          "simulation": {
+            "$ref": "#/components/schemas/SimulationRunMetadata",
+            "description": "Simulation execution parameters used for the run."
           }
         },
         "type": "object",
         "required": [
-          "compartments",
-          "population_name",
-          "population_size",
-          "n_age_groups",
-          "start_date",
-          "end_date",
-          "n_simulations",
-          "dt"
+          "model",
+          "population",
+          "simulation"
         ],
         "title": "SimulationMetadata",
-        "description": "Metadata about the simulation run."
+        "description": "Metadata about the simulation run, grouped to mirror the request shape."
       },
       "SimulationRequest": {
         "properties": {
@@ -1319,7 +1374,8 @@
             "description": "Whether the simulation completed successfully."
           },
           "metadata": {
-            "$ref": "#/components/schemas/SimulationMetadata"
+            "$ref": "#/components/schemas/SimulationMetadata",
+            "description": "Metadata about the simulation run."
           },
           "results": {
             "anyOf": [
@@ -1391,6 +1447,57 @@
         ],
         "title": "SimulationResultsData",
         "description": "All simulation results."
+      },
+      "SimulationRunMetadata": {
+        "properties": {
+          "start_date": {
+            "type": "string",
+            "title": "Start Date",
+            "description": "Simulation start date."
+          },
+          "end_date": {
+            "type": "string",
+            "title": "End Date",
+            "description": "Simulation end date."
+          },
+          "Nsim": {
+            "type": "integer",
+            "title": "Nsim",
+            "description": "Number of simulation runs."
+          },
+          "dt": {
+            "type": "number",
+            "title": "Dt",
+            "description": "Time step in days."
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed",
+            "description": "Random seed used."
+          },
+          "resample_frequency": {
+            "type": "string",
+            "title": "Resample Frequency",
+            "description": "Resampling frequency."
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_date",
+          "end_date",
+          "Nsim",
+          "dt",
+          "resample_frequency"
+        ],
+        "title": "SimulationRunMetadata",
+        "description": "Simulation section of metadata. Mirrors the `simulation` section of the request."
       },
       "SummaryConfig": {
         "properties": {
@@ -1681,16 +1788,6 @@
     {
       "name": "Model Presets",
       "description": "List built-in epidemic models (SIR, SEIR, SIS) with their compartments, parameters, and transitions."
-    }
-  ],
-  "servers": [
-    {
-      "url": "https://epyscenario-api.isi.it",
-      "description": "Production"
-    },
-    {
-      "url": "http://localhost:8000",
-      "description": "Local"
     }
   ]
 }

@@ -226,25 +226,6 @@ class OutputConfig(BaseModel):
 class SimulationRequest(BaseModel):
     """Complete simulation request."""
 
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "model": {
-                        "preset": "SIR",
-                        "parameters": {"transmission_rate": 0.3, "recovery_rate": 0.1},
-                    },
-                    "population": {"name": "United_States"},
-                    "simulation": {
-                        "start_date": "2024-01-01",
-                        "end_date": "2024-03-01",
-                        "Nsim": 10,
-                    },
-                }
-            ]
-        }
-    }
-
     model: ModelConfig = Field(..., description="Epidemic model configuration.")
     population: PopulationConfig = Field(..., description="Population configuration.")
     simulation: SimulationConfig = Field(..., description="Simulation execution parameters.")

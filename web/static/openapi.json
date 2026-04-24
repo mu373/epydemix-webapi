@@ -29,6 +29,29 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SimulationRequest"
+              },
+              "examples": {
+                "SIR": {
+                  "summary": "Basic SIR simulation",
+                  "description": "Run a Susceptible-Infected-Recovered model on the US population over two months.",
+                  "value": {
+                    "model": {
+                      "preset": "SIR",
+                      "parameters": {
+                        "transmission_rate": 0.3,
+                        "recovery_rate": 0.1
+                      }
+                    },
+                    "population": {
+                      "name": "United_States"
+                    },
+                    "simulation": {
+                      "start_date": "2024-01-01",
+                      "end_date": "2024-03-01",
+                      "Nsim": 10
+                    }
+                  }
+                }
               }
             }
           },
@@ -1336,26 +1359,7 @@
           "simulation"
         ],
         "title": "SimulationRequest",
-        "description": "Complete simulation request.",
-        "examples": [
-          {
-            "model": {
-              "parameters": {
-                "recovery_rate": 0.1,
-                "transmission_rate": 0.3
-              },
-              "preset": "SIR"
-            },
-            "population": {
-              "name": "United_States"
-            },
-            "simulation": {
-              "Nsim": 10,
-              "end_date": "2024-03-01",
-              "start_date": "2024-01-01"
-            }
-          }
-        ]
+        "description": "Complete simulation request."
       },
       "SimulationResponse": {
         "properties": {

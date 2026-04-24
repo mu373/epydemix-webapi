@@ -8,6 +8,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, BeforeValidator, Field, model_validator
 
+from .population import AgeGroupInfo
+
 
 def _ensure_list(v: str | list[str]) -> list[str]:
     """Accept a single string or a list of strings, always return a list."""
@@ -339,19 +341,53 @@ class SimulationResultsData(BaseModel):
     )
 
 
-class SimulationMetadata(BaseModel):
-    """Metadata about the simulation run."""
+class ModelMetadata(BaseModel):
+    """Model section of simulation metadata. Mirrors the `model` section of the request."""
 
-    model_preset: str | None = Field(default=None, description="Preset name if a preset was used.")
+    preset: str | None = Field(default=None, description="Preset name if a preset was used.")
     compartments: list[str] = Field(..., description="Compartment names in the model.")
-    population_name: str = Field(..., description="Population identifier.")
-    population_size: int = Field(..., description="Total population size.")
-    n_age_groups: int = Field(..., description="Number of age groups.")
+
+
+class PopulationMetadata(BaseModel):
+    """Population section of simulation metadata. Mirrors the `population` section of the request and adds resolved/derived values."""
+
+    name: str = Field(..., description="Population identifier.")
+    contacts_source: str | None = Field(
+        default=None,
+        description="Resolved contact matrix source actually used.",
+    )
+    layers: list[str] | None = Field(
+        default=None,
+        description="Resolved contact layers actually used.",
+    )
+    age_group_mapping: dict[str, list[str]] | None = Field(
+        default=None,
+        description="Custom age group aggregation, echoed back if the request supplied one.",
+    )
+    total: int = Field(..., description="Total population size.")
+    age_groups: list[AgeGroupInfo] = Field(
+        ...,
+        description="Population count per age group, in model order.",
+    )
+
+
+class SimulationRunMetadata(BaseModel):
+    """Simulation section of metadata. Mirrors the `simulation` section of the request."""
+
     start_date: str = Field(..., description="Simulation start date.")
     end_date: str = Field(..., description="Simulation end date.")
-    n_simulations: int = Field(..., description="Number of simulation runs.")
+    Nsim: int = Field(..., description="Number of simulation runs.")
     dt: float = Field(..., description="Time step in days.")
     seed: int | None = Field(default=None, description="Random seed used.")
+    resample_frequency: str = Field(..., description="Resampling frequency.")
+
+
+class SimulationMetadata(BaseModel):
+    """Metadata about the simulation run, grouped to mirror the request shape."""
+
+    model: ModelMetadata = Field(..., description="Model configuration used for the run.")
+    population: PopulationMetadata = Field(..., description="Resolved population configuration and derived counts.")
+    simulation: SimulationRunMetadata = Field(..., description="Simulation execution parameters used for the run.")
 
 
 class SimulationResponse(BaseModel):

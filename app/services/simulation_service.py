@@ -11,17 +11,57 @@ from epydemix.model.epimodel import EpiModel
 from epydemix.model.predefined_models import load_predefined_model
 from epydemix.population.population import load_epydemix_population
 
+from ..api.v1.schemas.population import AgeGroupInfo
 from ..api.v1.schemas.simulation import (
     InitialConditionsConfig,
     InterventionConfig,
     ModelConfig,
+    ModelMetadata,
     ParameterOverrideConfig,
     PopulationConfig,
+    PopulationMetadata,
     SimulationMetadata,
     SimulationRequest,
     SimulationResponse,
+    SimulationRunMetadata,
 )
+from .population_service import _resolve_contacts_source
 from .results_processing import process_results
+
+DEFAULT_LAYERS = ["home", "work", "school", "community"]
+
+
+def _build_population_metadata(
+    request_population: PopulationConfig,
+    model_population,
+) -> PopulationMetadata:
+    """Build PopulationMetadata from the request and the loaded model population."""
+    age_groups = [
+        AgeGroupInfo(name=str(name), population=int(count))
+        for name, count in zip(model_population.Nk_names, model_population.Nk)
+    ]
+    return PopulationMetadata(
+        name=request_population.name,
+        contacts_source=_resolve_contacts_source(
+            request_population.name, request_population.contacts_source
+        ),
+        layers=request_population.layers or DEFAULT_LAYERS,
+        age_group_mapping=request_population.age_group_mapping,
+        total=int(model_population.total_population),
+        age_groups=age_groups,
+    )
+
+
+def _build_run_metadata(request: SimulationRequest) -> SimulationRunMetadata:
+    """Build SimulationRunMetadata from the request."""
+    return SimulationRunMetadata(
+        start_date=request.simulation.start_date,
+        end_date=request.simulation.end_date,
+        Nsim=request.simulation.Nsim,
+        dt=request.simulation.dt,
+        seed=request.simulation.seed,
+        resample_frequency=request.simulation.resample_frequency,
+    )
 
 
 def create_model(config: ModelConfig) -> EpiModel:
@@ -96,7 +136,7 @@ def setup_population(model: EpiModel, config: PopulationConfig) -> None:
     population = load_epydemix_population(
         population_name=config.name,
         contacts_source=config.contacts_source,
-        layers=config.layers or ["home", "work", "school", "community"],
+        layers=config.layers or DEFAULT_LAYERS,
         age_group_mapping=config.age_group_mapping,
     )
     model.set_population(population)
@@ -275,16 +315,12 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
 
         # Build metadata
         metadata = SimulationMetadata(
-            model_preset=request.model.preset,
-            compartments=model.compartments,
-            population_name=request.population.name,
-            population_size=int(model.population.total_population),
-            n_age_groups=model.population.num_groups,
-            start_date=request.simulation.start_date,
-            end_date=request.simulation.end_date,
-            n_simulations=request.simulation.Nsim,
-            dt=request.simulation.dt,
-            seed=request.simulation.seed,
+            model=ModelMetadata(
+                preset=request.model.preset,
+                compartments=model.compartments,
+            ),
+            population=_build_population_metadata(request.population, model.population),
+            simulation=_build_run_metadata(request),
         )
 
         return SimulationResponse(
@@ -299,15 +335,19 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
             simulation_id=simulation_id,
             status="failed",
             metadata=SimulationMetadata(
-                compartments=[],
-                population_name=request.population.name,
-                population_size=0,
-                n_age_groups=0,
-                start_date=request.simulation.start_date,
-                end_date=request.simulation.end_date,
-                n_simulations=request.simulation.Nsim,
-                dt=request.simulation.dt,
-                seed=request.simulation.seed,
+                model=ModelMetadata(
+                    preset=request.model.preset,
+                    compartments=[],
+                ),
+                population=PopulationMetadata(
+                    name=request.population.name,
+                    contacts_source=request.population.contacts_source,
+                    layers=request.population.layers,
+                    age_group_mapping=request.population.age_group_mapping,
+                    total=0,
+                    age_groups=[],
+                ),
+                simulation=_build_run_metadata(request),
             ),
             error=str(e),
         )

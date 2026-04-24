@@ -3,7 +3,7 @@
   "info": {
     "title": "epydemix WebAPI",
     "description": "REST API for running epidemic simulations with epydemix",
-    "version": "0.2.0"
+    "version": "0.2.1"
   },
   "servers": [
     {

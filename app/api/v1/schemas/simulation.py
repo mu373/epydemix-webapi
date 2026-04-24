@@ -263,31 +263,38 @@ class TransitionResults(BaseModel):
     )
 
 
-class SummaryStatistic(BaseModel):
-    """A summary statistic with median and confidence interval."""
+class StatisticQuantiles(BaseModel):
+    """Quantile values for a summary statistic, keyed by quantile string (e.g. `0.5`)."""
 
-    median: float = Field(..., description="Median value across simulation runs.")
-    ci_95: list[float] = Field(..., min_length=2, max_length=2, description="95% confidence interval [lower, upper].")
+    quantiles: dict[str, float] = Field(
+        ...,
+        description="Quantile to value mapping, e.g. `{\"0.025\": ..., \"0.5\": ..., \"0.975\": ...}`.",
+    )
 
 
 class PeakStatistic(BaseModel):
-    """Peak statistic with date."""
+    """Peak statistic for a compartment in one age group."""
 
-    median: float = Field(..., description="Median peak value across simulation runs.")
-    ci_95: list[float] = Field(..., min_length=2, max_length=2, description="95% confidence interval [lower, upper].")
-    peak_date: str | None = Field(default=None, description="Date of the median peak.")
+    quantiles: dict[str, float] = Field(
+        ...,
+        description="Peak value per quantile, e.g. `{\"0.025\": ..., \"0.5\": ..., \"0.975\": ...}`.",
+    )
+    peak_date: str | None = Field(
+        default=None,
+        description="Date of the peak from the median trajectory.",
+    )
 
 
 class SummaryResults(BaseModel):
     """Summary statistics of the simulation."""
 
-    peaks: dict[str, PeakStatistic] | None = Field(
+    peaks: dict[str, dict[str, PeakStatistic]] | None = Field(
         default=None,
-        description="Peak statistics per compartment.",
+        description="Peak statistics: `compartment -> age_group -> {quantiles, peak_date}`.",
     )
-    totals: dict[str, SummaryStatistic] | None = Field(
+    totals: dict[str, dict[str, StatisticQuantiles]] | None = Field(
         default=None,
-        description="Total transition counts.",
+        description="Cumulative transition totals: `transition -> age_group -> {quantiles}`.",
     )
 
 

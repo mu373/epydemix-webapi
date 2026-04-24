@@ -831,20 +831,13 @@
       },
       "PeakStatistic": {
         "properties": {
-          "median": {
-            "type": "number",
-            "title": "Median",
-            "description": "Median peak value across simulation runs."
-          },
-          "ci_95": {
-            "items": {
+          "quantiles": {
+            "additionalProperties": {
               "type": "number"
             },
-            "type": "array",
-            "maxItems": 2,
-            "minItems": 2,
-            "title": "Ci 95",
-            "description": "95% confidence interval [lower, upper]."
+            "type": "object",
+            "title": "Quantiles",
+            "description": "Peak value per quantile, e.g. `{\"0.025\": ..., \"0.5\": ..., \"0.975\": ...}`."
           },
           "peak_date": {
             "anyOf": [
@@ -856,16 +849,15 @@
               }
             ],
             "title": "Peak Date",
-            "description": "Date of the median peak."
+            "description": "Date of the peak from the median trajectory."
           }
         },
         "type": "object",
         "required": [
-          "median",
-          "ci_95"
+          "quantiles"
         ],
         "title": "PeakStatistic",
-        "description": "Peak statistic with date."
+        "description": "Peak statistic for a compartment in one age group."
       },
       "PopulationConfig": {
         "properties": {
@@ -1503,6 +1495,24 @@
         "title": "SimulationRunMetadata",
         "description": "Simulation section of metadata. Mirrors the `simulation` section of the request."
       },
+      "StatisticQuantiles": {
+        "properties": {
+          "quantiles": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Quantiles",
+            "description": "Quantile to value mapping, e.g. `{\"0.025\": ..., \"0.5\": ..., \"0.975\": ...}`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "quantiles"
+        ],
+        "title": "StatisticQuantiles",
+        "description": "Quantile values for a summary statistic, keyed by quantile string (e.g. `0.5`)."
+      },
       "SummaryConfig": {
         "properties": {
           "peak_compartments": {
@@ -1546,7 +1556,10 @@
             "anyOf": [
               {
                 "additionalProperties": {
-                  "$ref": "#/components/schemas/PeakStatistic"
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/PeakStatistic"
+                  },
+                  "type": "object"
                 },
                 "type": "object"
               },
@@ -1555,13 +1568,16 @@
               }
             ],
             "title": "Peaks",
-            "description": "Peak statistics per compartment."
+            "description": "Peak statistics: `compartment -> age_group -> {quantiles, peak_date}`."
           },
           "totals": {
             "anyOf": [
               {
                 "additionalProperties": {
-                  "$ref": "#/components/schemas/SummaryStatistic"
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/StatisticQuantiles"
+                  },
+                  "type": "object"
                 },
                 "type": "object"
               },
@@ -1570,38 +1586,12 @@
               }
             ],
             "title": "Totals",
-            "description": "Total transition counts."
+            "description": "Cumulative transition totals: `transition -> age_group -> {quantiles}`."
           }
         },
         "type": "object",
         "title": "SummaryResults",
         "description": "Summary statistics of the simulation."
-      },
-      "SummaryStatistic": {
-        "properties": {
-          "median": {
-            "type": "number",
-            "title": "Median",
-            "description": "Median value across simulation runs."
-          },
-          "ci_95": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "maxItems": 2,
-            "minItems": 2,
-            "title": "Ci 95",
-            "description": "95% confidence interval [lower, upper]."
-          }
-        },
-        "type": "object",
-        "required": [
-          "median",
-          "ci_95"
-        ],
-        "title": "SummaryStatistic",
-        "description": "A summary statistic with median and confidence interval."
       },
       "TrajectoriesResults": {
         "properties": {

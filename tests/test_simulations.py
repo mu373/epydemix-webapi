@@ -344,11 +344,10 @@ def test_simulation_population_metadata(client):
     assert population["age_group_mapping"] is None
 
     age_groups = population["age_groups"]
+    assert isinstance(age_groups, dict)
     assert len(age_groups) > 0
-    for entry in age_groups:
-        assert "name" in entry
-        assert isinstance(entry["population"], int)
-    assert sum(entry["population"] for entry in age_groups) == population["total"]
+    assert all(isinstance(v, int) for v in age_groups.values())
+    assert sum(age_groups.values()) == population["total"]
 
 
 def test_simulation_summary_default_populated(client):

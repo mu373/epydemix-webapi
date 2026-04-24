@@ -8,8 +8,6 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, BeforeValidator, Field, model_validator
 
-from .population import AgeGroupInfo
-
 
 def _ensure_list(v: str | list[str]) -> list[str]:
     """Accept a single string or a list of strings, always return a list."""
@@ -373,9 +371,9 @@ class PopulationMetadata(BaseModel):
         description="Custom age group aggregation, echoed back if the request supplied one.",
     )
     total: int = Field(..., description="Total population size.")
-    age_groups: list[AgeGroupInfo] = Field(
+    age_groups: dict[str, int] = Field(
         ...,
-        description="Population count per age group, in model order.",
+        description="Age group label to population count, e.g. `{\"0-4\": 18608139}`. Keys are in model (age-ascending) order.",
     )
 
 

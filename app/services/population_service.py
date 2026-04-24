@@ -16,7 +16,6 @@ from epydemix.population.population import (
 )
 
 from ..api.v1.schemas.population import (
-    AgeGroupInfo,
     ContactMatrixResponse,
     PopulationDetail,
     PopulationListResponse,
@@ -231,10 +230,10 @@ def get_population_detail(name: str, contacts_source: str | None = None) -> Popu
     """
     pop = _load_population_cached(name, contacts_source)
 
-    age_groups = [
-        AgeGroupInfo(name=str(ag_name), population=int(pop_count))
+    age_groups = {
+        str(ag_name): int(pop_count)
         for ag_name, pop_count in zip(pop.Nk_names, pop.Nk)
-    ]
+    }
 
     # Get available contact sources from locations df
     df = get_locations_df()

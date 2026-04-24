@@ -23,7 +23,10 @@ def test_get_population_detail(client):
     assert "total_population" in data
     assert data["total_population"] > 0
     assert "age_groups" in data
+    assert isinstance(data["age_groups"], dict)
     assert len(data["age_groups"]) > 0
+    assert all(isinstance(v, int) for v in data["age_groups"].values())
+    assert sum(data["age_groups"].values()) == data["total_population"]
     assert "available_layers" in data
 
 

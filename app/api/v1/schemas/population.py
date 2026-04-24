@@ -26,13 +26,6 @@ class PopulationListResponse(BaseModel):
     total: int
 
 
-class AgeGroupInfo(BaseModel):
-    """Information about a single age group."""
-
-    name: str = Field(..., description="Age group name (e.g., '0-4', '5-9')")
-    population: int = Field(..., description="Population count in this age group")
-
-
 class ContactMatrixInfo(BaseModel):
     """Information about a contact matrix."""
 
@@ -47,7 +40,10 @@ class PopulationDetail(BaseModel):
     name: str = Field(..., description="Population identifier.")
     display_name: str = Field(..., description="Human-readable name.")
     total_population: int = Field(..., description="Total population size.")
-    age_groups: list[AgeGroupInfo] = Field(..., description="Information about each age group.")
+    age_groups: dict[str, int] = Field(
+        ...,
+        description="Age group label to population count, e.g. `{\"0-4\": 18608139}`. Keys are in model (age-ascending) order.",
+    )
     contact_sources: list[str] = Field(..., description="Available contact matrix sources.")
     default_contact_source: str | None = Field(default=None, description="Default contact source for this population.")
     available_layers: list[str] = Field(..., description="Available contact layers (e.g. home, work, school, community).")

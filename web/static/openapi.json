@@ -3,7 +3,7 @@
   "info": {
     "title": "epydemix WebAPI",
     "description": "REST API for running epidemic simulations with epydemix",
-    "version": "0.2.1"
+    "version": "0.2.2"
   },
   "servers": [
     {
@@ -315,27 +315,6 @@
   },
   "components": {
     "schemas": {
-      "AgeGroupInfo": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "title": "Name",
-            "description": "Age group name (e.g., '0-4', '5-9')"
-          },
-          "population": {
-            "type": "integer",
-            "title": "Population",
-            "description": "Population count in this age group"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name",
-          "population"
-        ],
-        "title": "AgeGroupInfo",
-        "description": "Information about a single age group."
-      },
       "CacheInfoResponse": {
         "properties": {
           "hits": {
@@ -937,12 +916,12 @@
             "description": "Total population size."
           },
           "age_groups": {
-            "items": {
-              "$ref": "#/components/schemas/AgeGroupInfo"
+            "additionalProperties": {
+              "type": "integer"
             },
-            "type": "array",
+            "type": "object",
             "title": "Age Groups",
-            "description": "Information about each age group."
+            "description": "Age group label to population count, e.g. `{\"0-4\": 18608139}`. Keys are in model (age-ascending) order."
           },
           "contact_sources": {
             "items": {
@@ -1065,12 +1044,12 @@
             "description": "Total population size."
           },
           "age_groups": {
-            "items": {
-              "$ref": "#/components/schemas/AgeGroupInfo"
+            "additionalProperties": {
+              "type": "integer"
             },
-            "type": "array",
+            "type": "object",
             "title": "Age Groups",
-            "description": "Population count per age group, in model order."
+            "description": "Age group label to population count, e.g. `{\"0-4\": 18608139}`. Keys are in model (age-ascending) order."
           }
         },
         "type": "object",

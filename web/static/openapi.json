@@ -1393,21 +1393,6 @@
               338120586
             ]
           },
-          "n_age_groups": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "N Age Groups",
-            "description": "Number of age groups",
-            "examples": [
-              5
-            ]
-          },
           "available_contact_sources": {
             "items": {
               "type": "string"

@@ -8,9 +8,15 @@ def test_list_populations(client):
     assert "total" in data
     assert data["total"] > 0
 
-    # Check that United_States is in the list
-    names = [p["name"] for p in data["populations"]]
-    assert "United_States" in names
+    by_name = {p["name"]: p for p in data["populations"]}
+    assert "United_States" in by_name
+
+    # Precomputed metadata makes total_population available without a live load.
+    assert by_name["United_States"]["total_population"] > 0
+
+    populated = sum(1 for p in data["populations"] if p["total_population"] is not None)
+    # At least 90% of populations should come from the precomputed CSV.
+    assert populated / data["total"] > 0.9
 
 
 def test_get_population_detail(client):

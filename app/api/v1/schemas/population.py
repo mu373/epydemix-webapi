@@ -13,7 +13,6 @@ class PopulationSummary(BaseModel):
     name: str = Field(..., description="Population identifier (e.g., 'United_States')", examples=["United_States"])
     display_name: str = Field(..., description="Human-readable name", examples=["United States"])
     total_population: int | None = Field(default=None, description="Total population size", examples=[338120586])
-    n_age_groups: int | None = Field(default=None, description="Number of age groups", examples=[5])
     available_contact_sources: list[str] = Field(
         default_factory=list,
         description="Available contact matrix sources",

@@ -8,6 +8,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, BeforeValidator, Field, model_validator
 
+from .population import AgeGroupInfo
+
 
 def _ensure_list(v: str | list[str]) -> list[str]:
     """Accept a single string or a list of strings, always return a list."""
@@ -181,67 +183,68 @@ class ParameterOverrideConfig(BaseModel):
 
 
 class SummaryConfig(BaseModel):
-    """Configuration for summary statistics."""
+    """Configuration for summary statistics.
+
+    Summary is returned by default for every compartment and transition, broken
+    down by age group and by the quantiles requested in `output.quantiles`.
+    Use the fields below to narrow that down."""
 
     peak_compartments: list[str] | None = Field(
         default=None,
-        description="Compartments to compute peak statistics for. Returns peak value, CI, and peak date.",
+        description=(
+            "By default, peak statistics are returned for every compartment. "
+            "Pass a list to narrow the response, e.g. `[\"Infected\"]`, "
+            "or pass `[]` to explicitly skip returning this summary. "
+            "Per-quantile peak values and the median-trajectory peak date are returned for each included age group."
+        ),
     )
     total_transitions: list[str] | None = Field(
         default=None,
-        description="Transitions to compute cumulative totals for. Returns median and CI.",
+        description=(
+            "By default, cumulative totals are returned for every transition. "
+            "Pass a list to narrow the response, e.g. `[\"Susceptible_to_Infected\"]`, "
+            "or pass `[]` to explicitly skip returning this summary. "
+            "Per-quantile total event counts are returned for each included age group."
+        ),
     )
 
 
 class OutputConfig(BaseModel):
-    """Output configuration."""
+    """Output configuration. Everything is optional; defaults return all compartments, all transitions, all age groups (including `total`), all standard quantiles, and a populated `summary`."""
 
     quantiles: list[float] | None = Field(
         default=None,
-        description="Quantiles to compute. Default: `[0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975]`.",
+        description=(
+            "Quantiles to compute for trajectories and summary. "
+            "Default: `[0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975]`."
+        ),
     )
     include_trajectories: bool = Field(
-        default=False, description="Include raw trajectory data (can be large)."
+        default=False, description="Include raw per-run trajectory data in the response. Can be large."
     )
     compartments: list[str] | None = Field(
         default=None,
-        description="Compartments to include in output. Default: all.",
+        description="Compartments to include in the trajectory section. Default: all. Does not affect `summary`.",
     )
     transitions: list[str] | None = Field(
         default=None,
-        description="Transitions to include in output. Default: all.",
+        description="Transitions to include in the trajectory section. Default: all. Does not affect `summary`.",
     )
     age_groups: list[str] | None = Field(
         default=None,
-        description="Age groups to include, e.g. `[\"0-4\", \"5-19\", \"total\"]`. Default: all.",
+        description=(
+            "Age groups to include in both trajectories and summary, "
+            "e.g. `[\"0-4\", \"5-19\", \"total\"]`. Default: all age groups plus `total`."
+        ),
     )
     summary: SummaryConfig | None = Field(
         default=None,
-        description="Summary statistics configuration.",
+        description="Summary statistics configuration. Omit to return the default summary.",
     )
 
 
 class SimulationRequest(BaseModel):
     """Complete simulation request."""
-
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "model": {
-                        "preset": "SIR",
-                        "parameters": {"transmission_rate": 0.3, "recovery_rate": 0.1},
-                    },
-                    "population": {"name": "United_States"},
-                    "simulation": {
-                        "start_date": "2024-01-01",
-                        "end_date": "2024-03-01",
-                        "Nsim": 10,
-                    },
-                }
-            ]
-        }
-    }
 
     model: ModelConfig = Field(..., description="Epidemic model configuration.")
     population: PopulationConfig = Field(..., description="Population configuration.")
@@ -280,31 +283,38 @@ class TransitionResults(BaseModel):
     )
 
 
-class SummaryStatistic(BaseModel):
-    """A summary statistic with median and confidence interval."""
+class StatisticQuantiles(BaseModel):
+    """Quantile values for a summary statistic, keyed by quantile string (e.g. `0.5`)."""
 
-    median: float = Field(..., description="Median value across simulation runs.")
-    ci_95: list[float] = Field(..., min_length=2, max_length=2, description="95% confidence interval [lower, upper].")
+    quantiles: dict[str, float] = Field(
+        ...,
+        description="Quantile to value mapping, e.g. `{\"0.025\": ..., \"0.5\": ..., \"0.975\": ...}`.",
+    )
 
 
 class PeakStatistic(BaseModel):
-    """Peak statistic with date."""
+    """Peak statistic for a compartment in one age group."""
 
-    median: float = Field(..., description="Median peak value across simulation runs.")
-    ci_95: list[float] = Field(..., min_length=2, max_length=2, description="95% confidence interval [lower, upper].")
-    peak_date: str | None = Field(default=None, description="Date of the median peak.")
+    quantiles: dict[str, float] = Field(
+        ...,
+        description="Peak value per quantile, e.g. `{\"0.025\": ..., \"0.5\": ..., \"0.975\": ...}`.",
+    )
+    peak_date: str | None = Field(
+        default=None,
+        description="Date of the peak from the median trajectory.",
+    )
 
 
 class SummaryResults(BaseModel):
     """Summary statistics of the simulation."""
 
-    peaks: dict[str, PeakStatistic] | None = Field(
+    peaks: dict[str, dict[str, PeakStatistic]] | None = Field(
         default=None,
-        description="Peak statistics per compartment.",
+        description="Peak statistics: `compartment -> age_group -> {quantiles, peak_date}`.",
     )
-    totals: dict[str, SummaryStatistic] | None = Field(
+    totals: dict[str, dict[str, StatisticQuantiles]] | None = Field(
         default=None,
-        description="Total transition counts.",
+        description="Cumulative transition totals: `transition -> age_group -> {quantiles}`.",
     )
 
 
@@ -339,19 +349,53 @@ class SimulationResultsData(BaseModel):
     )
 
 
-class SimulationMetadata(BaseModel):
-    """Metadata about the simulation run."""
+class ModelMetadata(BaseModel):
+    """Model section of simulation metadata. Mirrors the `model` section of the request."""
 
-    model_preset: str | None = Field(default=None, description="Preset name if a preset was used.")
+    preset: str | None = Field(default=None, description="Preset name if a preset was used.")
     compartments: list[str] = Field(..., description="Compartment names in the model.")
-    population_name: str = Field(..., description="Population identifier.")
-    population_size: int = Field(..., description="Total population size.")
-    n_age_groups: int = Field(..., description="Number of age groups.")
+
+
+class PopulationMetadata(BaseModel):
+    """Population section of simulation metadata. Mirrors the `population` section of the request and adds resolved/derived values."""
+
+    name: str = Field(..., description="Population identifier.")
+    contacts_source: str | None = Field(
+        default=None,
+        description="Resolved contact matrix source actually used.",
+    )
+    layers: list[str] | None = Field(
+        default=None,
+        description="Resolved contact layers actually used.",
+    )
+    age_group_mapping: dict[str, list[str]] | None = Field(
+        default=None,
+        description="Custom age group aggregation, echoed back if the request supplied one.",
+    )
+    total: int = Field(..., description="Total population size.")
+    age_groups: list[AgeGroupInfo] = Field(
+        ...,
+        description="Population count per age group, in model order.",
+    )
+
+
+class SimulationRunMetadata(BaseModel):
+    """Simulation section of metadata. Mirrors the `simulation` section of the request."""
+
     start_date: str = Field(..., description="Simulation start date.")
     end_date: str = Field(..., description="Simulation end date.")
-    n_simulations: int = Field(..., description="Number of simulation runs.")
+    Nsim: int = Field(..., description="Number of simulation runs.")
     dt: float = Field(..., description="Time step in days.")
     seed: int | None = Field(default=None, description="Random seed used.")
+    resample_frequency: str = Field(..., description="Resampling frequency.")
+
+
+class SimulationMetadata(BaseModel):
+    """Metadata about the simulation run, grouped to mirror the request shape."""
+
+    model: ModelMetadata = Field(..., description="Model configuration used for the run.")
+    population: PopulationMetadata = Field(..., description="Resolved population configuration and derived counts.")
+    simulation: SimulationRunMetadata = Field(..., description="Simulation execution parameters used for the run.")
 
 
 class SimulationResponse(BaseModel):

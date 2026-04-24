@@ -25,9 +25,9 @@ def test_run_sir_simulation_with_preset(client):
     data = response.json()
     assert data["status"] == "completed"
     assert "simulation_id" in data
-    assert data["metadata"]["model_preset"] == "SIR"
-    assert data["metadata"]["population_name"] == "United_States"
-    assert data["metadata"]["n_simulations"] == 10
+    assert data["metadata"]["model"]["preset"] == "SIR"
+    assert data["metadata"]["population"]["name"] == "United_States"
+    assert data["metadata"]["simulation"]["Nsim"] == 10
 
     # Check results structure
     assert "results" in data
@@ -58,7 +58,7 @@ def test_run_seir_simulation(client):
 
     data = response.json()
     assert data["status"] == "completed"
-    assert "Exposed" in data["metadata"]["compartments"]
+    assert "Exposed" in data["metadata"]["model"]["compartments"]
 
 
 def test_simulation_with_intervention(client):
@@ -177,7 +177,7 @@ def test_custom_model_simulation(client):
 
     data = response.json()
     assert data["status"] == "completed"
-    assert data["metadata"]["compartments"] == ["S", "I", "R"]
+    assert data["metadata"]["model"]["compartments"] == ["S", "I", "R"]
 
 
 def test_simulation_with_custom_age_groups(client):
@@ -213,7 +213,8 @@ def test_simulation_with_custom_age_groups(client):
     data = response.json()
     assert data["status"] == "completed"
     # Custom age groups should result in 4 age groups
-    assert data["metadata"]["n_age_groups"] == 4
+    assert len(data["metadata"]["population"]["age_groups"]) == 4
+    assert data["metadata"]["population"]["age_group_mapping"] == request["population"]["age_group_mapping"]
 
 
 def test_simulation_with_seed_reproducibility(client):
@@ -239,8 +240,8 @@ def test_simulation_with_seed_reproducibility(client):
     data1 = response1.json()
     data2 = response2.json()
 
-    assert data1["metadata"]["seed"] == 42
-    assert data2["metadata"]["seed"] == 42
+    assert data1["metadata"]["simulation"]["seed"] == 42
+    assert data2["metadata"]["simulation"]["seed"] == 42
 
     # Results should be identical with same seed
     assert data1["results"]["compartments"] == data2["results"]["compartments"]
@@ -271,8 +272,8 @@ def test_simulation_with_different_seeds(client):
     data1 = response1.json()
     data2 = response2.json()
 
-    assert data1["metadata"]["seed"] == 42
-    assert data2["metadata"]["seed"] == 123
+    assert data1["metadata"]["simulation"]["seed"] == 42
+    assert data2["metadata"]["simulation"]["seed"] == 123
 
     # Results should be different with different seeds
     assert data1["results"]["compartments"] != data2["results"]["compartments"]
@@ -317,3 +318,167 @@ def test_simulation_include_trajectories(client):
         for comp_name, age_groups in run["compartments"].items():
             assert "total" in age_groups
             assert len(age_groups) == 1  # Only "total" age group
+
+
+def test_simulation_population_metadata(client):
+    """Population metadata should include total, per-age-group counts, and resolved contacts config."""
+    request = {
+        "model": {"preset": "SIR"},
+        "population": {"name": "United_States"},
+        "simulation": {
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-10",
+            "Nsim": 3,
+        },
+    }
+
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200
+
+    population = response.json()["metadata"]["population"]
+
+    assert population["name"] == "United_States"
+    assert population["total"] > 0
+    assert population["contacts_source"] is not None
+    assert population["layers"] == ["home", "work", "school", "community"]
+    assert population["age_group_mapping"] is None
+
+    age_groups = population["age_groups"]
+    assert len(age_groups) > 0
+    for entry in age_groups:
+        assert "name" in entry
+        assert isinstance(entry["population"], int)
+    assert sum(entry["population"] for entry in age_groups) == population["total"]
+
+
+def test_simulation_summary_default_populated(client):
+    """Summary should be populated by default: all compartments and transitions, all age groups."""
+    request = {
+        "model": {"preset": "SIR"},
+        "population": {"name": "United_States"},
+        "simulation": {
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-15",
+            "Nsim": 3,
+        },
+    }
+
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200
+
+    summary = response.json()["results"]["summary"]
+    assert summary is not None
+
+    assert set(summary["peaks"].keys()) == {"Susceptible", "Infected", "Recovered"}
+    for by_age in summary["peaks"].values():
+        assert "total" in by_age
+        # Any per-age-group entry (including total) has quantiles + peak_date.
+        for stat in by_age.values():
+            assert "quantiles" in stat
+            assert "0.5" in stat["quantiles"]
+            assert "peak_date" in stat
+
+    assert set(summary["totals"].keys()) == {"Susceptible_to_Infected", "Infected_to_Recovered"}
+    for by_age in summary["totals"].values():
+        assert "total" in by_age
+        for stat in by_age.values():
+            assert "quantiles" in stat
+            assert "0.5" in stat["quantiles"]
+
+
+def test_simulation_summary_user_override(client):
+    """User-supplied summary fields override the per-field default, other fields keep defaulting."""
+    request = {
+        "model": {"preset": "SIR"},
+        "population": {"name": "United_States"},
+        "simulation": {
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-15",
+            "Nsim": 3,
+        },
+        "output": {
+            "summary": {
+                "peak_compartments": ["Infected"],
+            },
+        },
+    }
+
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200
+
+    summary = response.json()["results"]["summary"]
+    assert set(summary["peaks"].keys()) == {"Infected"}
+    # total_transitions was not specified -> defaults to all
+    assert set(summary["totals"].keys()) == {"Susceptible_to_Infected", "Infected_to_Recovered"}
+
+
+def test_simulation_summary_explicit_opt_out(client):
+    """An explicit empty list opts out of that part of the summary; both -> summary is null."""
+    request = {
+        "model": {"preset": "SIR"},
+        "population": {"name": "United_States"},
+        "simulation": {
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-15",
+            "Nsim": 3,
+        },
+        "output": {
+            "summary": {
+                "peak_compartments": [],
+                "total_transitions": [],
+            },
+        },
+    }
+
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200
+
+    assert response.json()["results"]["summary"] is None
+
+
+def test_simulation_summary_honors_quantiles(client):
+    """output.quantiles should drive which quantiles appear in the summary."""
+    request = {
+        "model": {"preset": "SIR"},
+        "population": {"name": "United_States"},
+        "simulation": {
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-15",
+            "Nsim": 3,
+        },
+        "output": {
+            "quantiles": [0.1, 0.5, 0.9],
+        },
+    }
+
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200
+
+    peaks = response.json()["results"]["summary"]["peaks"]
+    quantiles = peaks["Infected"]["total"]["quantiles"]
+    assert set(quantiles.keys()) == {"0.1", "0.5", "0.9"}
+
+
+def test_simulation_summary_honors_age_groups(client):
+    """output.age_groups should filter which age groups appear in the summary."""
+    request = {
+        "model": {"preset": "SIR"},
+        "population": {"name": "United_States"},
+        "simulation": {
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-15",
+            "Nsim": 3,
+        },
+        "output": {
+            "age_groups": ["total"],
+        },
+    }
+
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200
+
+    summary = response.json()["results"]["summary"]
+    for by_age in summary["peaks"].values():
+        assert set(by_age.keys()) == {"total"}
+    for by_age in summary["totals"].values():
+        assert set(by_age.keys()) == {"total"}

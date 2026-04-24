@@ -3,8 +3,18 @@
   "info": {
     "title": "epydemix WebAPI",
     "description": "REST API for running epidemic simulations with epydemix",
-    "version": "0.1.1"
+    "version": "0.2.1"
   },
+  "servers": [
+    {
+      "url": "https://epyscenario-api.isi.it",
+      "description": "Production"
+    },
+    {
+      "url": "http://localhost:8000",
+      "description": "Local"
+    }
+  ],
   "paths": {
     "/api/v1/simulations": {
       "post": {
@@ -19,6 +29,29 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SimulationRequest"
+              },
+              "examples": {
+                "SIR": {
+                  "summary": "Basic SIR simulation",
+                  "description": "Run a Susceptible-Infected-Recovered model on the US population over two months.",
+                  "value": {
+                    "model": {
+                      "preset": "SIR",
+                      "parameters": {
+                        "transmission_rate": 0.3,
+                        "recovery_rate": 0.1
+                      }
+                    },
+                    "population": {
+                      "name": "United_States"
+                    },
+                    "simulation": {
+                      "start_date": "2024-01-01",
+                      "end_date": "2024-03-01",
+                      "Nsim": 10
+                    }
+                  }
+                }
               }
             }
           },
@@ -649,6 +682,36 @@
         "title": "ModelConfig",
         "description": "Epidemic model configuration. Use `preset` for a built-in model (SIR, SEIR, SIS), or provide `compartments`, `parameters`, and `transitions` for a custom model."
       },
+      "ModelMetadata": {
+        "properties": {
+          "preset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preset",
+            "description": "Preset name if a preset was used."
+          },
+          "compartments": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Compartments",
+            "description": "Compartment names in the model."
+          }
+        },
+        "type": "object",
+        "required": [
+          "compartments"
+        ],
+        "title": "ModelMetadata",
+        "description": "Model section of simulation metadata. Mirrors the `model` section of the request."
+      },
       "OutputConfig": {
         "properties": {
           "quantiles": {
@@ -664,12 +727,12 @@
               }
             ],
             "title": "Quantiles",
-            "description": "Quantiles to compute. Default: `[0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975]`."
+            "description": "Quantiles to compute for trajectories and summary. Default: `[0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975]`."
           },
           "include_trajectories": {
             "type": "boolean",
             "title": "Include Trajectories",
-            "description": "Include raw trajectory data (can be large).",
+            "description": "Include raw per-run trajectory data in the response. Can be large.",
             "default": false
           },
           "compartments": {
@@ -685,7 +748,7 @@
               }
             ],
             "title": "Compartments",
-            "description": "Compartments to include in output. Default: all."
+            "description": "Compartments to include in the trajectory section. Default: all. Does not affect `summary`."
           },
           "transitions": {
             "anyOf": [
@@ -700,7 +763,7 @@
               }
             ],
             "title": "Transitions",
-            "description": "Transitions to include in output. Default: all."
+            "description": "Transitions to include in the trajectory section. Default: all. Does not affect `summary`."
           },
           "age_groups": {
             "anyOf": [
@@ -715,7 +778,7 @@
               }
             ],
             "title": "Age Groups",
-            "description": "Age groups to include, e.g. `[\"0-4\", \"5-19\", \"total\"]`. Default: all."
+            "description": "Age groups to include in both trajectories and summary, e.g. `[\"0-4\", \"5-19\", \"total\"]`. Default: all age groups plus `total`."
           },
           "summary": {
             "anyOf": [
@@ -726,12 +789,12 @@
                 "type": "null"
               }
             ],
-            "description": "Summary statistics configuration."
+            "description": "Summary statistics configuration. Omit to return the default summary."
           }
         },
         "type": "object",
         "title": "OutputConfig",
-        "description": "Output configuration."
+        "description": "Output configuration. Everything is optional; defaults return all compartments, all transitions, all age groups (including `total`), all standard quantiles, and a populated `summary`."
       },
       "ParameterOverrideConfig": {
         "properties": {
@@ -768,20 +831,13 @@
       },
       "PeakStatistic": {
         "properties": {
-          "median": {
-            "type": "number",
-            "title": "Median",
-            "description": "Median peak value across simulation runs."
-          },
-          "ci_95": {
-            "items": {
+          "quantiles": {
+            "additionalProperties": {
               "type": "number"
             },
-            "type": "array",
-            "maxItems": 2,
-            "minItems": 2,
-            "title": "Ci 95",
-            "description": "95% confidence interval [lower, upper]."
+            "type": "object",
+            "title": "Quantiles",
+            "description": "Peak value per quantile, e.g. `{\"0.025\": ..., \"0.5\": ..., \"0.975\": ...}`."
           },
           "peak_date": {
             "anyOf": [
@@ -793,16 +849,15 @@
               }
             ],
             "title": "Peak Date",
-            "description": "Date of the median peak."
+            "description": "Date of the peak from the median trajectory."
           }
         },
         "type": "object",
         "required": [
-          "median",
-          "ci_95"
+          "quantiles"
         ],
         "title": "PeakStatistic",
-        "description": "Peak statistic with date."
+        "description": "Peak statistic for a compartment in one age group."
       },
       "PopulationConfig": {
         "properties": {
@@ -951,6 +1006,81 @@
         ],
         "title": "PopulationListResponse",
         "description": "Response for listing all available populations."
+      },
+      "PopulationMetadata": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Population identifier."
+          },
+          "contacts_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contacts Source",
+            "description": "Resolved contact matrix source actually used."
+          },
+          "layers": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layers",
+            "description": "Resolved contact layers actually used."
+          },
+          "age_group_mapping": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Group Mapping",
+            "description": "Custom age group aggregation, echoed back if the request supplied one."
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Total population size."
+          },
+          "age_groups": {
+            "items": {
+              "$ref": "#/components/schemas/AgeGroupInfo"
+            },
+            "type": "array",
+            "title": "Age Groups",
+            "description": "Population count per age group, in model order."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "total",
+          "age_groups"
+        ],
+        "title": "PopulationMetadata",
+        "description": "Population section of simulation metadata. Mirrors the `population` section of the request and adds resolved/derived values."
       },
       "PopulationSummary": {
         "properties": {
@@ -1127,87 +1257,27 @@
       },
       "SimulationMetadata": {
         "properties": {
-          "model_preset": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Model Preset",
-            "description": "Preset name if a preset was used."
+          "model": {
+            "$ref": "#/components/schemas/ModelMetadata",
+            "description": "Model configuration used for the run."
           },
-          "compartments": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Compartments",
-            "description": "Compartment names in the model."
+          "population": {
+            "$ref": "#/components/schemas/PopulationMetadata",
+            "description": "Resolved population configuration and derived counts."
           },
-          "population_name": {
-            "type": "string",
-            "title": "Population Name",
-            "description": "Population identifier."
-          },
-          "population_size": {
-            "type": "integer",
-            "title": "Population Size",
-            "description": "Total population size."
-          },
-          "n_age_groups": {
-            "type": "integer",
-            "title": "N Age Groups",
-            "description": "Number of age groups."
-          },
-          "start_date": {
-            "type": "string",
-            "title": "Start Date",
-            "description": "Simulation start date."
-          },
-          "end_date": {
-            "type": "string",
-            "title": "End Date",
-            "description": "Simulation end date."
-          },
-          "n_simulations": {
-            "type": "integer",
-            "title": "N Simulations",
-            "description": "Number of simulation runs."
-          },
-          "dt": {
-            "type": "number",
-            "title": "Dt",
-            "description": "Time step in days."
-          },
-          "seed": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Seed",
-            "description": "Random seed used."
+          "simulation": {
+            "$ref": "#/components/schemas/SimulationRunMetadata",
+            "description": "Simulation execution parameters used for the run."
           }
         },
         "type": "object",
         "required": [
-          "compartments",
-          "population_name",
-          "population_size",
-          "n_age_groups",
-          "start_date",
-          "end_date",
-          "n_simulations",
-          "dt"
+          "model",
+          "population",
+          "simulation"
         ],
         "title": "SimulationMetadata",
-        "description": "Metadata about the simulation run."
+        "description": "Metadata about the simulation run, grouped to mirror the request shape."
       },
       "SimulationRequest": {
         "properties": {
@@ -1281,26 +1351,7 @@
           "simulation"
         ],
         "title": "SimulationRequest",
-        "description": "Complete simulation request.",
-        "examples": [
-          {
-            "model": {
-              "parameters": {
-                "recovery_rate": 0.1,
-                "transmission_rate": 0.3
-              },
-              "preset": "SIR"
-            },
-            "population": {
-              "name": "United_States"
-            },
-            "simulation": {
-              "Nsim": 10,
-              "end_date": "2024-03-01",
-              "start_date": "2024-01-01"
-            }
-          }
-        ]
+        "description": "Complete simulation request."
       },
       "SimulationResponse": {
         "properties": {
@@ -1319,7 +1370,8 @@
             "description": "Whether the simulation completed successfully."
           },
           "metadata": {
-            "$ref": "#/components/schemas/SimulationMetadata"
+            "$ref": "#/components/schemas/SimulationMetadata",
+            "description": "Metadata about the simulation run."
           },
           "results": {
             "anyOf": [
@@ -1392,6 +1444,75 @@
         "title": "SimulationResultsData",
         "description": "All simulation results."
       },
+      "SimulationRunMetadata": {
+        "properties": {
+          "start_date": {
+            "type": "string",
+            "title": "Start Date",
+            "description": "Simulation start date."
+          },
+          "end_date": {
+            "type": "string",
+            "title": "End Date",
+            "description": "Simulation end date."
+          },
+          "Nsim": {
+            "type": "integer",
+            "title": "Nsim",
+            "description": "Number of simulation runs."
+          },
+          "dt": {
+            "type": "number",
+            "title": "Dt",
+            "description": "Time step in days."
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed",
+            "description": "Random seed used."
+          },
+          "resample_frequency": {
+            "type": "string",
+            "title": "Resample Frequency",
+            "description": "Resampling frequency."
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_date",
+          "end_date",
+          "Nsim",
+          "dt",
+          "resample_frequency"
+        ],
+        "title": "SimulationRunMetadata",
+        "description": "Simulation section of metadata. Mirrors the `simulation` section of the request."
+      },
+      "StatisticQuantiles": {
+        "properties": {
+          "quantiles": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Quantiles",
+            "description": "Quantile to value mapping, e.g. `{\"0.025\": ..., \"0.5\": ..., \"0.975\": ...}`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "quantiles"
+        ],
+        "title": "StatisticQuantiles",
+        "description": "Quantile values for a summary statistic, keyed by quantile string (e.g. `0.5`)."
+      },
       "SummaryConfig": {
         "properties": {
           "peak_compartments": {
@@ -1407,7 +1528,7 @@
               }
             ],
             "title": "Peak Compartments",
-            "description": "Compartments to compute peak statistics for. Returns peak value, CI, and peak date."
+            "description": "By default, peak statistics are returned for every compartment. Pass a list to narrow the response, e.g. `[\"Infected\"]`, or pass `[]` to explicitly skip returning this summary. Per-quantile peak values and the median-trajectory peak date are returned for each included age group."
           },
           "total_transitions": {
             "anyOf": [
@@ -1422,12 +1543,12 @@
               }
             ],
             "title": "Total Transitions",
-            "description": "Transitions to compute cumulative totals for. Returns median and CI."
+            "description": "By default, cumulative totals are returned for every transition. Pass a list to narrow the response, e.g. `[\"Susceptible_to_Infected\"]`, or pass `[]` to explicitly skip returning this summary. Per-quantile total event counts are returned for each included age group."
           }
         },
         "type": "object",
         "title": "SummaryConfig",
-        "description": "Configuration for summary statistics."
+        "description": "Configuration for summary statistics.\n\nSummary is returned by default for every compartment and transition, broken\ndown by age group and by the quantiles requested in `output.quantiles`.\nUse the fields below to narrow that down."
       },
       "SummaryResults": {
         "properties": {
@@ -1435,7 +1556,10 @@
             "anyOf": [
               {
                 "additionalProperties": {
-                  "$ref": "#/components/schemas/PeakStatistic"
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/PeakStatistic"
+                  },
+                  "type": "object"
                 },
                 "type": "object"
               },
@@ -1444,13 +1568,16 @@
               }
             ],
             "title": "Peaks",
-            "description": "Peak statistics per compartment."
+            "description": "Peak statistics: `compartment -> age_group -> {quantiles, peak_date}`."
           },
           "totals": {
             "anyOf": [
               {
                 "additionalProperties": {
-                  "$ref": "#/components/schemas/SummaryStatistic"
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/StatisticQuantiles"
+                  },
+                  "type": "object"
                 },
                 "type": "object"
               },
@@ -1459,38 +1586,12 @@
               }
             ],
             "title": "Totals",
-            "description": "Total transition counts."
+            "description": "Cumulative transition totals: `transition -> age_group -> {quantiles}`."
           }
         },
         "type": "object",
         "title": "SummaryResults",
         "description": "Summary statistics of the simulation."
-      },
-      "SummaryStatistic": {
-        "properties": {
-          "median": {
-            "type": "number",
-            "title": "Median",
-            "description": "Median value across simulation runs."
-          },
-          "ci_95": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "maxItems": 2,
-            "minItems": 2,
-            "title": "Ci 95",
-            "description": "95% confidence interval [lower, upper]."
-          }
-        },
-        "type": "object",
-        "required": [
-          "median",
-          "ci_95"
-        ],
-        "title": "SummaryStatistic",
-        "description": "A summary statistic with median and confidence interval."
       },
       "TrajectoriesResults": {
         "properties": {
@@ -1681,16 +1782,6 @@
     {
       "name": "Model Presets",
       "description": "List built-in epidemic models (SIR, SEIR, SIS) with their compartments, parameters, and transitions."
-    }
-  ],
-  "servers": [
-    {
-      "url": "https://epyscenario-api.isi.it",
-      "description": "Production"
-    },
-    {
-      "url": "http://localhost:8000",
-      "description": "Local"
     }
   ]
 }

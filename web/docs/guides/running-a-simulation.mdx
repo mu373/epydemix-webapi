@@ -49,23 +49,39 @@ We'll use the `SIR` preset.
 
 ## 4. Read the response
 
-The response contains `metadata`, `results`, and a `status` field.
+The response contains `metadata`, `results`, and a `status` field. By default the API returns everything: all compartments and transitions, all age groups (plus `total`), all seven standard quantiles, and a `summary` with peaks and cumulative totals per age group. You can narrow any of these via `output` (see [Customizing output](#5-customizing-output)).
 
 ```json
 {
   "simulation_id": "sim_c9617343b215",
   "status": "completed",
   "metadata": {
-    "model_preset": "SIR",
-    "compartments": ["Susceptible", "Infected", "Recovered"],
-    "population_name": "United_States",
-    "population_size": 338120586,
-    "n_age_groups": 5,
-    "start_date": "2024-01-01",
-    "end_date": "2024-06-01",
-    "n_simulations": 10,
-    "dt": 1.0,
-    "seed": null
+    "model": {
+      "preset": "SIR",
+      "compartments": ["Susceptible", "Infected", "Recovered"]
+    },
+    "population": {
+      "name": "United_States",
+      "contacts_source": "mistry_2021",
+      "layers": ["home", "work", "school", "community"],
+      "age_group_mapping": null,
+      "total": 338120586,
+      "age_groups": [
+        { "name": "0-4", "population": 18608139 },
+        { "name": "5-19", "population": 63540783 },
+        { "name": "20-49", "population": 132780169 },
+        { "name": "50-64", "population": 63172279 },
+        { "name": "65+", "population": 60019216 }
+      ]
+    },
+    "simulation": {
+      "start_date": "2024-01-01",
+      "end_date": "2024-06-01",
+      "Nsim": 10,
+      "dt": 1.0,
+      "seed": null,
+      "resample_frequency": "D"
+    }
   },
   "results": {
     "compartments": {
@@ -91,6 +107,28 @@ The response contains `metadata`, `results`, and a `status` field.
           }
         }
       }
+    },
+    "summary": {
+      "peaks": {
+        "Infected": {
+          "total": {
+            "quantiles": {
+              "0.025": 121800000.0,
+              "0.5":   124500000.0,
+              "0.975": 127100000.0
+            },
+            "peak_date": "2024-02-14"
+          },
+          "0-4":  { "quantiles": { "0.5": 4120000.0, "...": 0 }, "peak_date": "2024-02-13" },
+          "65+":  { "quantiles": { "0.5": 16800000.0, "...": 0 }, "peak_date": "2024-02-16" }
+        }
+      },
+      "totals": {
+        "Susceptible_to_Infected": {
+          "total": { "quantiles": { "0.025": 213000000.0, "0.5": 215000000.0, "0.975": 217000000.0 } },
+          "0-4":   { "quantiles": { "0.5":  11800000.0, "...": 0 } }
+        }
+      }
     }
   }
 }
@@ -98,7 +136,33 @@ The response contains `metadata`, `results`, and a `status` field.
 
 Results are organized as quantiles (median, confidence intervals) across simulation runs. Both `compartments` and `transitions` follow the same nested structure: `name -> age_group -> quantile -> [values]`. The `total` age group is the sum across all age groups.
 
-## 5. Increase Nsim for production use
+`summary` mirrors that shape without the time dimension. `peaks` is `compartment -> age_group -> {quantiles, peak_date}` and carries the maximum value reached during the simulation window per quantile. `totals` is `transition -> age_group -> {quantiles}` and carries the cumulative number of transition events over the whole window.
+
+## 5. Customizing output
+
+Everything under `output` is optional; sensible defaults cover most cases. You can narrow the response with any combination of:
+
+```json
+{
+  "output": {
+    "quantiles": [0.1, 0.5, 0.9],
+    "age_groups": ["total"],
+    "compartments": ["Infected"],
+    "transitions": ["Susceptible_to_Infected"],
+    "summary": {
+      "peak_compartments": ["Infected"],
+      "total_transitions": []
+    }
+  }
+}
+```
+
+- `quantiles` drives both the trajectory quantiles and the `summary` quantiles.
+- `age_groups` filters both the trajectory age groups and the `summary` age groups. Use `["total"]` to skip the per-age breakdown entirely.
+- `compartments` / `transitions` filter the trajectory section only.
+- `summary.peak_compartments` / `summary.total_transitions`: omit to include every compartment / transition; pass `[]` to explicitly opt out of that half of the summary. An empty array for both leaves `summary: null`.
+
+## 6. Increase Nsim for production use
 
 Start with `Nsim: 10` while testing, then increase to 100 or more for reliable estimates.
 

@@ -192,16 +192,18 @@ class SummaryConfig(BaseModel):
     peak_compartments: list[str] | None = Field(
         default=None,
         description=(
-            "Compartment names to compute peak statistics for, e.g. `[\"Infected\"]`. "
-            "Omit to include every compartment; pass `[]` to explicitly skip returning this summary. "
+            "By default, peak statistics are returned for every compartment. "
+            "Pass a list to narrow the response, e.g. `[\"Infected\"]`, "
+            "or pass `[]` to explicitly skip returning this summary. "
             "Per-quantile peak values and the median-trajectory peak date are returned for each included age group."
         ),
     )
     total_transitions: list[str] | None = Field(
         default=None,
         description=(
-            "Transition names to compute cumulative totals for, e.g. `[\"Susceptible_to_Infected\"]`. "
-            "Omit to include every transition; pass `[]` to explicitly skip returning this summary. "
+            "By default, cumulative totals are returned for every transition. "
+            "Pass a list to narrow the response, e.g. `[\"Susceptible_to_Infected\"]`, "
+            "or pass `[]` to explicitly skip returning this summary. "
             "Per-quantile total event counts are returned for each included age group."
         ),
     )

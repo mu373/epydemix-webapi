@@ -33,6 +33,14 @@ def test_get_population_detail(client):
     assert len(data["age_groups"]) > 0
     assert all(isinstance(v, int) for v in data["age_groups"].values())
     assert sum(data["age_groups"].values()) == data["total_population"]
+
+    # Raw single-year age distribution should be present and finer-grained.
+    assert "age_distribution" in data
+    assert isinstance(data["age_distribution"], dict)
+    assert len(data["age_distribution"]) > len(data["age_groups"])
+    assert all(isinstance(v, int) for v in data["age_distribution"].values())
+    assert sum(data["age_distribution"].values()) == data["total_population"]
+
     assert "available_layers" in data
 
 

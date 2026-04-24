@@ -43,8 +43,13 @@ class PopulationDetail(BaseModel):
     total_population: int = Field(..., description="Total population size.", examples=[338120586])
     age_groups: dict[str, int] = Field(
         ...,
-        description="Age group label to population count, e.g. `{\"0-4\": 18608139}`. Keys are in model (age-ascending) order.",
+        description="Default 5-group aggregation (epydemix `mistry_2021`/`prem_2021` coarse groups). Keys are in age-ascending order.",
         examples=[{"0-4": 18608139, "5-19": 63540783, "20-49": 132780169, "50-64": 63172279, "65+": 60019216}],
+    )
+    age_distribution: dict[str, int] = Field(
+        ...,
+        description="Raw per-single-year population counts from the upstream `age_distribution.csv`. Keys are age labels (e.g. `\"0\"`..`\"83\"`, `\"84+\"`) in ascending order.",
+        examples=[{"0": 18608139, "1": 18500000, "2": 18400000, "83": 900000, "84+": 3200000}],
     )
     contact_sources: list[str] = Field(
         ...,

@@ -91,11 +91,11 @@ async def health_check() -> HealthResponse:
     HealthResponse
         Health status including API and epydemix versions.
     """
-    try:
-        import epydemix
+    from importlib.metadata import PackageNotFoundError, version
 
-        epydemix_version = getattr(epydemix, "__version__", "unknown")
-    except ImportError:
+    try:
+        epydemix_version = version("epydemix")
+    except PackageNotFoundError:
         epydemix_version = None
 
     return HealthResponse(

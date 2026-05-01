@@ -16,13 +16,18 @@ from ..api.v1.schemas.simulation import (
     InterventionConfig,
     ModelConfig,
     ModelMetadata,
-    ParameterOverrideConfig,
+    ParameterTransformConfig,
     PopulationConfig,
     PopulationMetadata,
+    SimulationConfig,
     SimulationMetadata,
     SimulationRequest,
     SimulationResponse,
     SimulationRunMetadata,
+)
+from ..utils.parameter_transforms import (
+    apply_transform_to_parameter,
+    compute_transform_array,
 )
 from .population_service import _resolve_contacts_source
 from .results_processing import process_results
@@ -63,12 +68,14 @@ def _build_run_metadata(request: SimulationRequest) -> SimulationRunMetadata:
     )
 
 
-def create_model(config: ModelConfig) -> EpiModel:
+def create_model(config: ModelConfig) -> tuple[EpiModel, dict[str, list[float]]]:
     """Create an EpiModel from configuration.
 
-    Creates either a predefined model (SIR, SEIR, SIS) with optional parameter
-    overrides, or a fully custom model with user-defined compartments and
-    transitions.
+    Splits parameters into scalar and list-typed groups. Scalars are wired in
+    immediately (presets seed defaults via the preset constructor, then user
+    scalars upsert via `add_parameter`); list (age-varying) values are returned
+    to the caller so they can be added after `setup_population` has run, since
+    epydemix needs `population.num_groups` for shape checks.
 
     Parameters
     ----------
@@ -78,28 +85,30 @@ def create_model(config: ModelConfig) -> EpiModel:
 
     Returns
     -------
-    EpiModel
-        Configured epydemix EpiModel instance ready for population setup.
+    tuple of (EpiModel, dict)
+        The model with scalar parameters applied, plus a dictionary of any
+        age-varying parameters that still need to be added once the
+        population is set.
     """
+    raw = config.parameters or {}
+    scalar_params: dict[str, float] = {
+        k: float(v) for k, v in raw.items() if not isinstance(v, list)
+    }
+    list_params: dict[str, list[float]] = {
+        k: v for k, v in raw.items() if isinstance(v, list)
+    }
+
     if config.preset:
-        # Use predefined model with parameter overrides
-        params = config.parameters or {}
-        model = load_predefined_model(
-            config.preset,
-            transmission_rate=params.get("transmission_rate", 0.3),
-            recovery_rate=params.get("recovery_rate", 0.1),
-            incubation_rate=params.get("incubation_rate", 0.2),
-        )
-        # Override any additional parameters
-        for param_name, value in params.items():
-            if param_name not in ["transmission_rate", "recovery_rate", "incubation_rate"]:
-                model.add_parameter(parameter_name=param_name, value=value)
-        return model
+        # Load with the preset's own defaults; user scalars then override them.
+        # Whichever scalars the preset doesn't reference are still added to
+        # model.parameters but stay unused, matching prior behavior.
+        model: EpiModel = load_predefined_model(config.preset)  # type: ignore[assignment]
+        for name, value in scalar_params.items():
+            model.add_parameter(parameter_name=name, value=value)
+        return model, list_params
 
-    # Create custom model
-    model = EpiModel(compartments=config.compartments, parameters=config.parameters)
+    model = EpiModel(compartments=config.compartments, parameters=scalar_params)
 
-    # Add transitions
     if config.transitions:
         for trans in config.transitions:
             params = trans.params
@@ -115,7 +124,31 @@ def create_model(config: ModelConfig) -> EpiModel:
                 params=params,
             )
 
-    return model
+    return model, list_params
+
+
+def apply_age_varying_parameters(
+    model: EpiModel,
+    list_params: dict[str, list[float]],
+) -> None:
+    """Add length-N age-varying parameters after the population is set.
+
+    Validates list length against `model.population.num_groups` and stores a
+    fresh `np.array` so the model does not retain a reference to the
+    request-supplied list. Mutates `model` in place.
+    """
+    if not list_params:
+        return
+
+    n_groups = model.population.num_groups
+    for name, value in list_params.items():
+        if len(value) != n_groups:
+            raise ValueError(
+                f"Parameter '{name}' has length {len(value)} but population has {n_groups} age groups"
+            )
+        # Epydemix represents age-varying parameters as 2D arrays of shape (1, N).
+        # A 1D shape (N,) is interpreted as a (too-short) time series.
+        model.add_parameter(parameter_name=name, value=np.array(value).reshape(1, n_groups))
 
 
 def setup_population(model: EpiModel, config: PopulationConfig) -> None:
@@ -222,31 +255,68 @@ def apply_interventions(model: EpiModel, interventions: list[InterventionConfig]
         )
 
 
-def apply_parameter_overrides(
-    model: EpiModel, overrides: list[ParameterOverrideConfig] | None
+def apply_parameter_transforms(
+    model: EpiModel,
+    transforms: list[ParameterTransformConfig] | None,
+    simulation_config: SimulationConfig,
 ) -> None:
-    """Apply time-varying parameter overrides to the model.
+    """Apply parameter transforms (`balcan` / `scale` / `override`) to the model.
 
-    Modifies parameter values during specified time periods, allowing
-    for scenarios like changing transmission rates.
+    Multiplicative transforms (`balcan`, `scale`) are composed in the order
+    the user supplied them and written back to `model.parameters`. Override
+    transforms are applied last via `model.override_parameter` and live in
+    `model.overrides`, so they always win for their date window. All target
+    parameter names are validated up front so a typo surfaces as a clean error.
 
-    Parameters
-    ----------
-    model : EpiModel
-        EpiModel to configure with parameter overrides.
-    overrides : list of ParameterOverrideConfig or None
-        List of parameter override configurations. If None or empty,
-        no overrides are applied.
+    Mutates `model` in place.
     """
-    if not overrides:
+    if not transforms:
         return
 
-    for override in overrides:
+    for transform in transforms:
+        if transform.target_parameter not in model.parameters:
+            raise ValueError(
+                f"parameter_transforms[*].target_parameter '{transform.target_parameter}' is not defined in model.parameters"
+            )
+
+    multiplicative = [t for t in transforms if t.method in ("balcan", "scale")]
+    overrides = [t for t in transforms if t.method == "override"]
+
+    # Multiplicative transforms compose in user-supplied order.
+    # apply_transform_to_parameter always returns a fresh array, so writing
+    # new_value back via add_parameter does not alias the previous value.
+    for transform in multiplicative:
+        existing = model.get_parameter(transform.target_parameter)
+        transform_array = compute_transform_array(
+            transform,
+            simulation_config.start_date,
+            simulation_config.end_date,
+            simulation_config.dt,
+        )
+        new_value = apply_transform_to_parameter(existing, transform_array)
+        model.add_parameter(parameter_name=transform.target_parameter, value=new_value)
+
+    # Overrides last; epydemix stores these in model.overrides separately.
+    # Defensive copy of list values so the model does not retain a reference
+    # to the request-body list. Per-age-group lists are reshaped to (1, N) so
+    # epydemix interprets them as age-varying rather than as a (too-short)
+    # time series.
+    n_groups = model.population.num_groups
+    for transform in overrides:
+        if isinstance(transform.value, list):
+            if len(transform.value) != n_groups:
+                raise ValueError(
+                    f"parameter_transforms[*].value for '{transform.target_parameter}' has length "
+                    f"{len(transform.value)} but population has {n_groups} age groups"
+                )
+            value = np.array(transform.value).reshape(1, n_groups)
+        else:
+            value = transform.value
         model.override_parameter(
-            start_date=override.start_date,
-            end_date=override.end_date,
-            parameter_name=override.parameter_name,
-            value=override.value,
+            start_date=transform.start_date,
+            end_date=transform.end_date,
+            parameter_name=transform.target_parameter,
+            value=value,
         )
 
 
@@ -278,17 +348,21 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
     simulation_id = f"sim_{uuid.uuid4().hex[:12]}"
 
     try:
-        # Create model
-        model = create_model(request.model)
+        # Create model (scalar params applied; age-varying params deferred until
+        # population is set so num_groups is available for shape validation).
+        model, list_params = create_model(request.model)
 
         # Setup population
         setup_population(model, request.population)
 
+        # Add age-varying base parameters now that the population is resolved.
+        apply_age_varying_parameters(model, list_params)
+
         # Apply interventions
         apply_interventions(model, request.interventions)
 
-        # Apply parameter overrides
-        apply_parameter_overrides(model, request.parameter_overrides)
+        # Apply parameter transforms (balcan / scale / override).
+        apply_parameter_transforms(model, request.parameter_transforms, request.simulation)
 
         # Create initial conditions
         initial_conditions = create_initial_conditions(model, request.initial_conditions)
@@ -329,6 +403,9 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
             results=results_data,
         )
 
+    except ValueError:
+        # Config validation errors propagate to the route as 422.
+        raise
     except Exception as e:
         return SimulationResponse(
             simulation_id=simulation_id,

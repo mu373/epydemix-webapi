@@ -188,7 +188,10 @@ def test_simulation_with_custom_age_groups(client):
     assert data["status"] == "completed"
     # Custom age groups should result in 4 age groups
     assert len(data["metadata"]["population"]["age_groups"]) == 4
-    assert data["metadata"]["population"]["age_group_mapping"] == request["population"]["age_group_mapping"]
+    assert (
+        data["metadata"]["population"]["age_group_mapping"]
+        == request["population"]["age_group_mapping"]
+    )
 
 
 def test_simulation_with_seed_reproducibility(client):

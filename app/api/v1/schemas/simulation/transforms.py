@@ -26,7 +26,9 @@ class BalcanTransform(_BaseTransform):
     method: Literal["balcan"]
     max_date: str = Field(..., description="Date of peak value, `YYYY-MM-DD`.")
     max_value: float = Field(..., description="Maximum parameter value (at `max_date`).")
-    min_value: float = Field(..., description="Minimum parameter value (at `min_date` or half a period away).")
+    min_value: float = Field(
+        ..., description="Minimum parameter value (at `min_date` or half a period away)."
+    )
     min_date: str | None = Field(
         default=None,
         description=(
@@ -47,7 +49,9 @@ class ScaleTransform(_BaseTransform):
     method: Literal["scale"]
     start_date: str = Field(..., description="Window start, `YYYY-MM-DD`.")
     end_date: str = Field(..., description="Window end, `YYYY-MM-DD`. Must be `>= start_date`.")
-    factor: float = Field(..., description="Multiplicative factor applied within `[start_date, end_date]`.")
+    factor: float = Field(
+        ..., description="Multiplicative factor applied within `[start_date, end_date]`."
+    )
 
     @model_validator(mode="after")
     def _validate_window(self) -> "ScaleTransform":

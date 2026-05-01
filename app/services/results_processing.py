@@ -14,15 +14,16 @@ from ..api.v1.schemas.simulation import (
     CompartmentResults,
     OutputConfig,
     PeakStatistic,
+    SimulationResultsData,
     StatisticQuantiles,
     SummaryResults,
     TrajectoriesResults,
     TrajectoryData,
     TransitionResults,
 )
+from ..utils.column_utils import parse_column_name
 
 DEFAULT_QUANTILES: list[float] = [0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975]
-from ..utils.column_utils import parse_column_name
 
 
 def build_quantile_hierarchy(
@@ -226,9 +227,7 @@ def compute_summary(
                     continue
                 comp_data = stacked[key]  # shape: (Nsim, timesteps)
                 peak_per_sim = np.max(comp_data, axis=1)
-                quantile_values = {
-                    str(q): float(np.quantile(peak_per_sim, q)) for q in quantiles
-                }
+                quantile_values = {str(q): float(np.quantile(peak_per_sim, q)) for q in quantiles}
 
                 median_traj = np.median(comp_data, axis=0)
                 peak_idx = int(np.argmax(median_traj))
@@ -253,9 +252,7 @@ def compute_summary(
                     continue
                 trans_data = trans_stacked[key]
                 total_per_sim = np.sum(trans_data, axis=1)
-                quantile_values = {
-                    str(q): float(np.quantile(total_per_sim, q)) for q in quantiles
-                }
+                quantile_values = {str(q): float(np.quantile(total_per_sim, q)) for q in quantiles}
                 total_by_group[age_group] = StatisticQuantiles(quantiles=quantile_values)
             if total_by_group:
                 totals[trans_name] = total_by_group

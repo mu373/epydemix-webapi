@@ -45,9 +45,7 @@ def compute_aggregated(name: str) -> tuple[str, list[tuple[str, int]]] | tuple[s
     """Load a population via epydemix and return (name, [(age_group, count), ...])."""
     try:
         pop = load_epydemix_population(population_name=name)
-        pairs = [
-            (str(label), int(count)) for label, count in zip(pop.Nk_names, pop.Nk)
-        ]
+        pairs = [(str(label), int(count)) for label, count in zip(pop.Nk_names, pop.Nk)]
         return name, pairs
     except Exception as exc:
         print(f"  aggregated failed: {name}: {exc}", file=sys.stderr)
@@ -59,9 +57,7 @@ def fetch_raw_distribution(name: str) -> tuple[str, list[tuple[str, int]]] | tup
     url = f"{RAW_BASE_URL}/{name}/demographic/age_distribution.csv"
     try:
         df = pd.read_csv(url)
-        pairs = [
-            (str(row["group_name"]), int(row["value"])) for _, row in df.iterrows()
-        ]
+        pairs = [(str(row["group_name"]), int(row["value"])) for _, row in df.iterrows()]
         return name, pairs
     except Exception as exc:
         print(f"  raw failed: {name}: {exc}", file=sys.stderr)

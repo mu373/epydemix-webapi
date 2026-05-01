@@ -57,13 +57,11 @@ def apply_transform_to_parameter(existing_value, transform_array: np.ndarray) ->
             out[:, i] = transform_array * arr[:, i]
         return out
 
-    raise ValueError(
-        f"Cannot apply transform to existing parameter with shape {arr.shape}"
-    )
+    raise ValueError(f"Cannot apply transform to existing parameter with shape {arr.shape}")
 
 
 def compute_transform_array(
-    transform_config: "ParameterTransformConfig",
+    transform_config: ParameterTransformConfig,
     date_start: str,
     date_stop: str,
     delta_t: float,
@@ -92,6 +90,4 @@ def compute_transform_array(
         )
         return np.array(values)
 
-    raise ValueError(
-        f"compute_transform_array does not handle method '{transform_config.method}'"
-    )
+    raise ValueError(f"compute_transform_array does not handle method '{transform_config.method}'")

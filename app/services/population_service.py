@@ -6,7 +6,8 @@ retrieving population details, and accessing contact matrices.
 
 import functools
 import logging
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
 
 import numpy as np
@@ -33,9 +34,7 @@ class PopulationLoadTimeoutError(Exception):
     def __init__(self, population_name: str, timeout: float):
         self.population_name = population_name
         self.timeout = timeout
-        super().__init__(
-            f"Loading population '{population_name}' timed out after {timeout}s"
-        )
+        super().__init__(f"Loading population '{population_name}' timed out after {timeout}s")
 
 
 @functools.lru_cache(maxsize=1)
@@ -98,7 +97,8 @@ def _load_precomputed_metadata(
             entry["age_groups"] = age_groups
         logger.info(
             "Loaded precomputed aggregated metadata for %d populations from %s",
-            len(age_groups_by_name), aggregated_path.name,
+            len(age_groups_by_name),
+            aggregated_path.name,
         )
     else:
         logger.warning("Precomputed metadata CSV not found at %s", aggregated_path)
@@ -110,7 +110,8 @@ def _load_precomputed_metadata(
             entry["age_distribution"] = distribution
         logger.info(
             "Loaded precomputed age distribution for %d populations from %s",
-            len(distribution_by_name), raw_path.name,
+            len(distribution_by_name),
+            raw_path.name,
         )
     else:
         logger.warning("Precomputed age distribution CSV not found at %s", raw_path)
@@ -260,9 +261,7 @@ def _load_population_cached(
     # Update metadata cache. Preserve any precomputed fields (e.g. age_distribution).
     entry = _population_metadata_cache.setdefault(name, {})
     entry["total_population"] = int(pop.total_population)
-    entry["age_groups"] = {
-        str(label): int(count) for label, count in zip(pop.Nk_names, pop.Nk)
-    }
+    entry["age_groups"] = {str(label): int(count) for label, count in zip(pop.Nk_names, pop.Nk)}
 
     return pop
 
@@ -292,10 +291,7 @@ def get_population_detail(name: str, contacts_source: str | None = None) -> Popu
     """
     pop = _load_population_cached(name, contacts_source)
 
-    age_groups = {
-        str(ag_name): int(pop_count)
-        for ag_name, pop_count in zip(pop.Nk_names, pop.Nk)
-    }
+    age_groups = {str(ag_name): int(pop_count) for ag_name, pop_count in zip(pop.Nk_names, pop.Nk)}
 
     # Get available contact sources from locations df
     df = get_locations_df()

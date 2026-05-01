@@ -1,0 +1,78 @@
+---
+sidebar_position: 3
+---
+
+import EndpointSelector from '@site/src/components/EndpointSelector';
+import CurlBlock from '@site/src/components/CurlBlock';
+
+# Parameters
+
+<EndpointSelector />
+
+Parameters are the named rate values referenced by your model's transitions. Every parameter used in a [preset](./presets.mdx) or [custom model](./custom-models.mdx) transition must appear under `model.parameters`. Two value shapes are supported.
+
+## Scalar parameters
+
+A single rate that applies uniformly to every age group. This is the default.
+
+<CurlBlock>
+{`curl -X POST BASE_URL/simulations \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": {
+      "preset": "SIR",
+      "parameters": {
+        "transmission_rate": 0.3,
+        "recovery_rate": 0.1
+      }
+    },
+    "population": { "name": "United_States" },
+    "simulation": {
+      "start_date": "2024-01-01",
+      "end_date": "2024-06-01",
+      "Nsim": 10
+    }
+  }'`}
+</CurlBlock>
+
+## Age-varying parameters
+
+A list of one rate per age group. The list length must match the number of age groups in the resolved population (after any `age_group_mapping` is applied).
+
+For example, with the 5-group mapping below, `transmission_rate = [0.35, 0.35, 0.30, 0.25, 0.20]` means the youngest two groups transmit at 0.35, the middle group at 0.30, and so on.
+
+<CurlBlock>
+{`curl -X POST BASE_URL/simulations \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": {
+      "preset": "SIR",
+      "parameters": {
+        "transmission_rate": [0.35, 0.35, 0.30, 0.25, 0.20],
+        "recovery_rate":     [0.10, 0.10, 0.10, 0.08, 0.06]
+      }
+    },
+    "population": {
+      "name": "United_States",
+      "contacts_source": "prem_2021",
+      "age_group_mapping": {
+        "0-4":   ["0-4"],
+        "5-17":  ["5-9", "10-14", "15-19"],
+        "18-49": ["20-24", "25-29", "30-34", "35-39", "40-44", "45-49"],
+        "50-64": ["50-54", "55-59", "60-64"],
+        "65+":   ["65-69", "70-74", "75+"]
+      }
+    },
+    "simulation": {
+      "start_date": "2024-01-01",
+      "end_date": "2024-12-31",
+      "Nsim": 10
+    }
+  }'`}
+</CurlBlock>
+
+You can mix scalar and age-varying values across parameters. For example, `transmission_rate` can be age-varying while `recovery_rate` stays scalar.
+
+## Time-varying parameters
+
+To make parameters change over the course of the simulation (seasonality, scaling windows, or absolute overrides), use [`parameter_transforms`](../parameter-transforms.mdx). Transforms compose on top of whatever you set here, so a base scalar or age-varying parameter still acts as the starting point.

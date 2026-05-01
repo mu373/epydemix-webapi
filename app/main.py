@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from .api.v1.router import router as api_v1_router
 from .api.v1.schemas.common import HealthResponse
@@ -58,6 +59,9 @@ app = FastAPI(
         },
     ],
 )
+
+# Return gzip when the response is over minimum_size.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # CORS middleware
 app.add_middleware(

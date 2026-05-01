@@ -28,7 +28,9 @@ Multiple transforms on the same parameter compose:
 
 ## Seasonality
 
-Sinusoidal seasonality based on Balcan D et al., *J. Comput. Sci.* 2010 ([DOI: 10.1016/j.jocs.2010.07.002](https://doi.org/10.1016/j.jocs.2010.07.002), eq. 25). At every step, the existing parameter value is multiplied by a factor in `[min_value/max_value, 1]` so the rate peaks at `max_value` on `max_date` and troughs at `min_value` on `min_date` (or half a period away if `min_date` is omitted, in which case the period defaults to 365 days).
+Sinusoidal seasonality based on Balcan D et al., *J. Comput. Sci.* 2010 ([DOI: 10.1016/j.jocs.2010.07.002](https://doi.org/10.1016/j.jocs.2010.07.002), eq. 25). The transform is **multiplicative on top of the baseline parameter**: at each step, the existing value is multiplied by a sinusoidal factor that reaches `1.0` on `max_date` (the seasonal peak) and `min_value / max_value` on `min_date` (the seasonal trough). The effective parameter therefore swings between `baseline` (peak) and `baseline × (min_value / max_value)` (trough).
+
+**Recommended usage**: leave `max_value` at its default of `1.0` and only set `min_value` to express the seasonal floor as a fraction of the baseline. For example, `min_value=0.1` means "the parameter drops to 10% of baseline at the trough."
 
 The seasonal factor at time $t$ (days since the simulation start) is
 
@@ -44,16 +46,16 @@ where:
 
 The effective parameter is then `baseline × s(t)`, ranging in `[baseline × min_value/max_value, baseline]`.
 
-For example, if `transmission_rate = 0.3`, `max_value = 1`, `min_value = 0.1`, with `max_date = 2024-01-15` and `min_date = 2024-07-15`, the effective rate is `0.3 × 1 = 0.3` on Jan 15 and `0.3 × 0.1 = 0.03` on Jul 15, sweeping smoothly between the two over the year.
+For example, with `transmission_rate = 0.3`, `min_value = 0.1`, `max_date = 2024-01-15`, and `min_date = 2024-07-15` (and the default `max_value = 1`), the effective rate is `0.3 × 1 = 0.3` on Jan 15 and `0.3 × 0.1 = 0.03` on Jul 15, sweeping smoothly between the two over the year.
 
 ![Seasonality example: baseline 0.3, max=1, min=0.1, peak Jan 15 / trough Jul 15](/img/parameter-transforms/seasonality.svg)
 
 | Field | Required | Description |
 |---|---|---|
 | `target_parameter` | yes | Parameter name to modulate (e.g. `transmission_rate`). |
-| `max_date` | yes | Date of the seasonal peak, `YYYY-MM-DD`. |
-| `max_value` | yes | Maximum parameter value (factor 1.0 at `max_date`). |
-| `min_value` | yes | Minimum parameter value. |
+| `max_date` | yes | Date when the multiplier reaches its peak (1.0), `YYYY-MM-DD`. |
+| `min_value` | yes | Lower bound of the seasonal scaling. With the default `max_value=1`, this is the fraction of baseline at the trough (e.g. `0.1` = 10% of baseline). |
+| `max_value` | no | Upper bound of the seasonal scaling. Defaults to `1.0`. Only set this if you want to express both bounds in absolute units; only the **ratio** `min_value / max_value` affects the dynamics. |
 | `min_date` | no | Date of the trough. If set, period = `2 × |min_date − max_date|`. If omitted, period = 365 days. |
 
 <CurlBlock>
@@ -77,8 +79,7 @@ For example, if `transmission_rate = 0.3`, `max_value = 1`, `min_value = 0.1`, w
         "method": "balcan",
         "max_date": "2024-01-15",
         "min_date": "2024-07-15",
-        "max_value": 0.35,
-        "min_value": 0.15
+        "min_value": 0.1
       }
     ]
   }'`}

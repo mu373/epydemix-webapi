@@ -17,17 +17,47 @@ class _BaseTransform(BaseModel):
 class BalcanTransform(_BaseTransform):
     """Balcan-style sinusoidal seasonality applied across the simulation timeline (Balcan D et al. J. Comput. Sci. 2010; https://doi.org/10.1016/j.jocs.2010.07.002).
 
-    The transform is multiplicative: at each step, the existing parameter value
-    is multiplied by a factor in `[min_value/max_value, 1]` so that the rate
-    peaks at `max_value` on `max_date` and troughs at `min_value` on `min_date`
-    (or half a period away if `min_date` is omitted).
+    The transform is **multiplicative on top of the baseline parameter**. At each
+    step, the existing value of `target_parameter` is multiplied by a sinusoidal
+    factor that reaches `1.0` on `max_date` (the seasonal peak) and
+    `min_value / max_value` on `min_date` (the seasonal trough). The effective
+    parameter therefore swings between `baseline` (peak) and
+    `baseline * (min_value / max_value)` (trough).
+
+    **Recommended usage**: leave `max_value` at its default of `1.0` and only set
+    `min_value` to express the seasonal floor as a fraction of the baseline. For
+    example, with `min_value=0.1`, the parameter drops to 10% of its baseline at
+    the trough.
+
+    Setting `max_value` to anything other than `1` only matters if you want to
+    express both bounds in absolute units (mirroring the notation in Balcan et al.
+    2010). Note that the multiplier shape depends only on the **ratio**
+    `min_value / max_value`: `(max_value=0.4, min_value=0.1)` produces exactly
+    the same dynamics as `(max_value=1, min_value=0.25)` (both have ratio `0.25`).
     """
 
     method: Literal["balcan"]
-    max_date: str = Field(..., description="Date of peak value, `YYYY-MM-DD`.")
-    max_value: float = Field(..., description="Maximum parameter value (at `max_date`).")
+    max_date: str = Field(
+        ...,
+        description="Date when the multiplier reaches its peak (1.0), `YYYY-MM-DD`.",
+    )
     min_value: float = Field(
-        ..., description="Minimum parameter value (at `min_date` or half a period away)."
+        ...,
+        description=(
+            "Lower bound of the seasonal scaling. The multiplier reaches "
+            "`min_value / max_value` at the trough. With the default "
+            "`max_value=1`, this is simply the fraction of baseline at the "
+            "trough (e.g. `0.1` means 10% of baseline)."
+        ),
+    )
+    max_value: float = Field(
+        default=1.0,
+        description=(
+            "Upper bound of the seasonal scaling. Defaults to `1.0`, which makes "
+            "the peak exactly equal to the baseline parameter. Only set this if "
+            "you want to express both bounds in absolute units; the multiplier "
+            "shape depends only on the ratio `min_value / max_value`."
+        ),
     )
     min_date: str | None = Field(
         default=None,

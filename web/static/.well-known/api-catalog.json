@@ -1,0 +1,29 @@
+{
+  "linkset": [
+    {
+      "anchor": "https://epyscenario-api.isi.it/api/v1",
+      "service-desc": [
+        {
+          "href": "https://epyscenario-api.isi.it/api/v1/openapi.json",
+          "type": "application/json"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://epydemix-webapi.vercel.app/api-reference",
+          "type": "text/html"
+        },
+        {
+          "href": "https://epyscenario-api.isi.it/api/v1/docs",
+          "type": "text/html"
+        }
+      ],
+      "status": [
+        {
+          "href": "https://epyscenario-api.isi.it/api/v1/health",
+          "type": "application/json"
+        }
+      ]
+    }
+  ]
+}

@@ -85,11 +85,14 @@ function PageActionsInner() {
     window.setTimeout(() => setCopyState('idle'), 2000);
   }
 
-  async function handleChatClick(href: string) {
-    // Best-effort: copy markdown to clipboard before opening the chat tab so
-    // the user can paste if the assistant can't fetch the URL itself.
-    await copyMarkdown();
-    window.open(href, '_blank', 'noopener,noreferrer');
+  function handleChatClick() {
+    // Fire-and-forget the clipboard copy so the user can paste the markdown
+    // if the assistant can't fetch the URL itself. Don't `await` — the
+    // navigation must happen synchronously in the click handler, otherwise
+    // the browser drops the user gesture and silently blocks the popup
+    // (this is what was killing the Vercel build vs. localhost: CDN latency
+    // pushed the navigation past the gesture window).
+    void copyMarkdown();
     setMenuOpen(false);
   }
 
@@ -131,16 +134,18 @@ function PageActionsInner() {
             <span>Open Markdown</span>
           </a>
           {CHAT_TARGETS.map((t) => (
-            <button
+            <a
               key={t.id}
-              type="button"
               className={styles.menuItem}
-              onClick={() => handleChatClick(t.href(pageUrl))}
+              href={t.href(pageUrl)}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={handleChatClick}
               role="menuitem"
             >
               {EXTERNAL_ICON}
               <span>{t.label}</span>
-            </button>
+            </a>
           ))}
         </div>
       )}

@@ -36,6 +36,7 @@ SIMULATION_REQUEST_EXAMPLES: dict[str, Example] = {
     response_model=SimulationResponse,
     summary="Run epidemic simulation",
     description="Execute an epidemic simulation with the specified configuration.",
+    operation_id="run_simulation",
 )
 async def create_simulation(
     request: SimulationRequest = Body(..., openapi_examples=SIMULATION_REQUEST_EXAMPLES),

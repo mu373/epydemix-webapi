@@ -14,6 +14,7 @@ dependencies = [
     "uvicorn[standard]>=0.27.0",
     "gunicorn>=21.0.0",
     "epydemix>=1.0.0",
+    "fastapi-mcp>=0.4.0",
 ]
 
 [project.optional-dependencies]

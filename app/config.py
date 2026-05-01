@@ -53,5 +53,8 @@ class Settings(BaseSettings):
     population_load_timeout: float = 30.0  # Max time to load a single population
     request_timeout: float = 60.0  # Max time for any API request
 
+    # MCP server (Model Context Protocol) — exposes API endpoints as agent tools at /mcp
+    mcp_enabled: bool = True
+
 
 settings = Settings()

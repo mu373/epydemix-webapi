@@ -100,6 +100,7 @@ PRESETS = [
     response_model=PresetsListResponse,
     summary="List model presets",
     description="Get information about available predefined epidemic models.",
+    operation_id="list_model_presets",
 )
 async def get_presets() -> PresetsListResponse:
     """List all available model presets.

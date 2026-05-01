@@ -73,13 +73,19 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Mcp-Session-Id"],  # MCP streamable HTTP session header
 )
 
 # Include API router
 app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
 
 
-@app.get("/api/v1/health", response_model=HealthResponse, tags=["Health"])
+@app.get(
+    "/api/v1/health",
+    response_model=HealthResponse,
+    tags=["Health"],
+    operation_id="health_check",
+)
 async def health_check() -> HealthResponse:
     """Check API health status.
 
@@ -108,14 +114,22 @@ async def health_check() -> HealthResponse:
 _API_BASE = settings.api_v1_prefix
 
 
+_DOCS_BASE = "https://epydemix-webapi.vercel.app"
+
+
 def _link_header() -> str:
     """RFC 8288 ``Link`` header advertising agent-discoverable resources."""
-    return ", ".join([
+    links = [
         '</.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"',
         f'<{_API_BASE}/openapi.json>; rel="service-desc"; type="application/json"',
         f'<{_API_BASE}/docs>; rel="service-doc"; type="text/html"',
         f'<{_API_BASE}/health>; rel="status"; type="application/json"',
-    ])
+        f'<{_DOCS_BASE}/llms.txt>; rel="https://llmstxt.org/"; type="text/markdown"',
+        f'<{_DOCS_BASE}/llms-full.txt>; rel="https://llmstxt.org/full"; type="text/markdown"',
+    ]
+    if settings.mcp_enabled:
+        links.append('</mcp>; rel="mcp-server"')
+    return ", ".join(links)
 
 
 @app.get("/", include_in_schema=False)
@@ -162,32 +176,45 @@ async def api_catalog() -> Response:
     so agents can discover the schema, documentation, and liveness probe
     from a single well-known location.
     """
-    catalog = {
-        "linkset": [
-            {
-                "anchor": _API_BASE,
-                "service-desc": [
-                    {
-                        "href": f"{_API_BASE}/openapi.json",
-                        "type": "application/json",
-                    }
-                ],
-                "service-doc": [
-                    {
-                        "href": f"{_API_BASE}/docs",
-                        "type": "text/html",
-                    }
-                ],
-                "status": [
-                    {
-                        "href": f"{_API_BASE}/health",
-                        "type": "application/json",
-                    }
-                ],
-            }
-        ]
+    entry: dict = {
+        "anchor": _API_BASE,
+        "service-desc": [
+            {"href": f"{_API_BASE}/openapi.json", "type": "application/json"}
+        ],
+        "service-doc": [
+            {"href": f"{_API_BASE}/docs", "type": "text/html"},
+            {"href": f"{_DOCS_BASE}/api-reference", "type": "text/html"},
+        ],
+        "status": [
+            {"href": f"{_API_BASE}/health", "type": "application/json"}
+        ],
+        # llms.txt and llms-full.txt: long-form agent-friendly markdown
+        # (https://llmstxt.org). Hosted on the docs origin.
+        "https://llmstxt.org/": [
+            {"href": f"{_DOCS_BASE}/llms.txt", "type": "text/markdown"}
+        ],
+        "https://llmstxt.org/full": [
+            {"href": f"{_DOCS_BASE}/llms-full.txt", "type": "text/markdown"}
+        ],
     }
+    if settings.mcp_enabled:
+        entry["mcp-server"] = [{"href": "/mcp"}]
+    catalog = {"linkset": [entry]}
     return Response(
         content=json.dumps(catalog),
         media_type="application/linkset+json",
     )
+
+
+# MCP server: expose API endpoints as agent tools at /mcp.
+# Mounted last so all routes are registered before fastapi-mcp inspects the OpenAPI schema.
+if settings.mcp_enabled:
+    from fastapi_mcp import FastApiMCP
+
+    mcp = FastApiMCP(
+        app,
+        name="epydemix",
+        description="Run epidemic simulations and browse populations from the epydemix library.",
+        exclude_operations=["get_population_cache_status"],
+    )
+    mcp.mount_http()

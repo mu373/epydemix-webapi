@@ -127,6 +127,7 @@ _UNITED_STATES_DETAIL_EXAMPLE = {
     response_model=PopulationListResponse,
     summary="List available populations",
     description="Get a list of all available populations that can be used in simulations.",
+    operation_id="list_populations",
 )
 async def get_populations() -> PopulationListResponse:
     """List all available populations.
@@ -155,6 +156,7 @@ async def get_populations() -> PopulationListResponse:
     response_model=CacheInfoResponse,
     summary="Get population cache status",
     description="Get information about the population cache.",
+    operation_id="get_population_cache_status",
 )
 async def get_cache_status() -> CacheInfoResponse:
     """Get population cache status.
@@ -180,6 +182,7 @@ async def get_cache_status() -> CacheInfoResponse:
         "population by default age groups, the raw per-single-year age distribution, "
         "available contact matrix sources, the default source, and available contact layers."
     ),
+    operation_id="get_population",
     responses={
         200: {
             "content": {
@@ -244,6 +247,7 @@ async def get_population(
     response_model=ContactMatrixResponse,
     summary="Get contact matrices",
     description="Get contact matrices for a specific population.",
+    operation_id="get_population_contacts",
 )
 async def get_contact_matrices(
     name: str,

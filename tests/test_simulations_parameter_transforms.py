@@ -1,5 +1,6 @@
 """Age-varying base parameters and `parameter_transforms` (balcan / scale / override)."""
 
+import pytest
 
 _AGE_GROUP_MAPPING_5 = {
     "0-4": ["0-4"],
@@ -263,30 +264,32 @@ def _combined_request(transforms_in_order):
 
 def test_simulation_transforms_combined(client):
     """Balcan + scale + override on the same parameter runs end-to-end."""
-    request = _combined_request([
-        {
-            "target_parameter": "transmission_rate",
-            "method": "balcan",
-            "max_date": "2024-01-15",
-            "min_date": "2024-07-15",
-            "max_value": 0.35,
-            "min_value": 0.15,
-        },
-        {
-            "target_parameter": "transmission_rate",
-            "method": "scale",
-            "start_date": "2024-02-01",
-            "end_date": "2024-02-15",
-            "factor": 0.5,
-        },
-        {
-            "target_parameter": "transmission_rate",
-            "method": "override",
-            "start_date": "2024-02-05",
-            "end_date": "2024-02-10",
-            "value": 0.05,
-        },
-    ])
+    request = _combined_request(
+        [
+            {
+                "target_parameter": "transmission_rate",
+                "method": "balcan",
+                "max_date": "2024-01-15",
+                "min_date": "2024-07-15",
+                "max_value": 0.35,
+                "min_value": 0.15,
+            },
+            {
+                "target_parameter": "transmission_rate",
+                "method": "scale",
+                "start_date": "2024-02-01",
+                "end_date": "2024-02-15",
+                "factor": 0.5,
+            },
+            {
+                "target_parameter": "transmission_rate",
+                "method": "override",
+                "start_date": "2024-02-05",
+                "end_date": "2024-02-10",
+                "value": 0.05,
+            },
+        ]
+    )
 
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 200, response.text
@@ -320,12 +323,18 @@ def test_simulation_transforms_order_independence_for_overrides(client):
         "value": 0.05,
     }
 
-    response_a = client.post("/api/v1/simulations", json=_combined_request(multiplicative + [override]))
-    response_b = client.post("/api/v1/simulations", json=_combined_request([override] + multiplicative))
+    response_a = client.post(
+        "/api/v1/simulations", json=_combined_request(multiplicative + [override])
+    )
+    response_b = client.post(
+        "/api/v1/simulations", json=_combined_request([override] + multiplicative)
+    )
 
     assert response_a.status_code == 200
     assert response_b.status_code == 200
-    assert response_a.json()["results"]["compartments"] == response_b.json()["results"]["compartments"]
+    assert (
+        response_a.json()["results"]["compartments"] == response_b.json()["results"]["compartments"]
+    )
 
 
 def test_simulation_transform_undefined_target_parameter(client):
@@ -422,6 +431,112 @@ def test_simulation_transform_invalid_window_override(client):
 
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 422
+
+
+def test_simulation_include_parameters_off_by_default(client):
+    """`output.include_parameters` defaults to false; `results.parameters` is null."""
+    request = {
+        "model": {"preset": "SIR"},
+        "population": {"name": "United_States"},
+        "simulation": {
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-10",
+            "Nsim": 2,
+            "seed": 1,
+        },
+    }
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200
+    assert response.json()["results"].get("parameters") is None
+
+
+def test_simulation_include_parameters_emits_baked_in_overrides(client):
+    """With include_parameters=true, the response shows transmission_rate dropping
+    to the override value inside the override window and returning to baseline outside."""
+    request = {
+        "model": {
+            "preset": "SIR",
+            "parameters": {"transmission_rate": 0.3, "recovery_rate": 0.1},
+        },
+        "population": {"name": "United_States"},
+        "simulation": {
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-31",
+            "Nsim": 2,
+            "seed": 1,
+        },
+        "parameter_transforms": [
+            {
+                "target_parameter": "transmission_rate",
+                "method": "override",
+                "start_date": "2024-01-10",
+                "end_date": "2024-01-15",
+                "value": 0.05,
+            }
+        ],
+        "output": {"include_parameters": True},
+    }
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200
+
+    params = response.json()["results"]["parameters"]
+    assert params is not None
+    assert "transmission_rate" in params["data"]
+    # Pick any age group; arrays are broadcast so all groups carry the same scalar.
+    age_group = next(iter(params["data"]["transmission_rate"]))
+    series = params["data"]["transmission_rate"][age_group]
+    dates = params["dates"]
+
+    # Outside the override window, value is the baseline 0.3.
+    idx_jan_5 = dates.index("2024-01-05")
+    assert series[idx_jan_5] == pytest.approx(0.3, abs=1e-9)
+
+    # Inside [Jan 10, Jan 15], the override 0.05 is baked in.
+    idx_jan_12 = dates.index("2024-01-12")
+    assert series[idx_jan_12] == pytest.approx(0.05, abs=1e-9)
+
+    # After the window, back to baseline.
+    idx_jan_20 = dates.index("2024-01-20")
+    assert series[idx_jan_20] == pytest.approx(0.3, abs=1e-9)
+
+
+def test_simulation_metadata_echoes_transforms_and_interventions(client):
+    """`SimulationMetadata` should echo back `parameter_transforms` and `interventions`."""
+    request = {
+        "model": {"preset": "SIR"},
+        "population": {"name": "United_States"},
+        "simulation": {
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-15",
+            "Nsim": 2,
+            "seed": 1,
+        },
+        "interventions": [
+            {
+                "layer_name": "school",
+                "start_date": "2024-01-05",
+                "end_date": "2024-01-10",
+                "reduction_factor": 0.3,
+            }
+        ],
+        "parameter_transforms": [
+            {
+                "target_parameter": "transmission_rate",
+                "method": "scale",
+                "start_date": "2024-01-05",
+                "end_date": "2024-01-10",
+                "factor": 0.5,
+            }
+        ],
+    }
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200
+
+    metadata = response.json()["metadata"]
+    assert metadata["interventions"] is not None
+    assert metadata["interventions"][0]["layer_name"] == "school"
+    assert metadata["parameter_transforms"] is not None
+    assert metadata["parameter_transforms"][0]["method"] == "scale"
 
 
 def test_simulation_transform_no_aliasing():

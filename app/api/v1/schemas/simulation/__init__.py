@@ -18,6 +18,7 @@ from .request import (
 from .response import (
     CompartmentResults,
     ModelMetadata,
+    ParameterResults,
     PeakStatistic,
     PopulationMetadata,
     SimulationMetadata,
@@ -67,4 +68,5 @@ __all__ = [
     "TrajectoriesResults",
     "TrajectoryData",
     "TransitionResults",
+    "ParameterResults",
 ]

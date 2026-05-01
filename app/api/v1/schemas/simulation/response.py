@@ -4,6 +4,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from .request import InterventionConfig
+from .transforms import ParameterTransformConfig
+
 
 class CompartmentResults(BaseModel):
     """Compartment trajectory quantiles."""
@@ -16,22 +19,24 @@ class CompartmentResults(BaseModel):
     data: dict[str, dict[str, dict[str, list[float]]]] = Field(
         ...,
         description="Nested structure: `compartment -> age_group -> quantile -> [values]`.",
-        examples=[{
-            "Susceptible": {
-                "total": {
-                    "0.025": [337330089.45, 334285584.7, 331100000.2],
-                    "0.5":   [337330136.0,  334286966.0, 331103421.0],
-                    "0.975": [337330182.55, 334288347.3, 331106841.8],
+        examples=[
+            {
+                "Susceptible": {
+                    "total": {
+                        "0.025": [337330089.45, 334285584.7, 331100000.2],
+                        "0.5": [337330136.0, 334286966.0, 331103421.0],
+                        "0.975": [337330182.55, 334288347.3, 331106841.8],
+                    },
                 },
-            },
-            "Infected": {
-                "total": {
-                    "0.025": [621344.45, 3041835.25, 5800000.0],
-                    "0.5":   [621391.0,  3043170.0,  5812500.0],
-                    "0.975": [621437.55, 3044504.75, 5825000.0],
+                "Infected": {
+                    "total": {
+                        "0.025": [621344.45, 3041835.25, 5800000.0],
+                        "0.5": [621391.0, 3043170.0, 5812500.0],
+                        "0.975": [621437.55, 3044504.75, 5825000.0],
+                    },
                 },
-            },
-        }],
+            }
+        ],
     )
 
 
@@ -46,15 +51,17 @@ class TransitionResults(BaseModel):
     data: dict[str, dict[str, dict[str, list[float]]]] = Field(
         ...,
         description="Nested structure: `transition -> age_group -> quantile -> [values]`.",
-        examples=[{
-            "Susceptible_to_Infected": {
-                "total": {
-                    "0.025": [621344.45, 3041835.25, 5800000.0],
-                    "0.5":   [621391.0,  3043170.0,  5812500.0],
-                    "0.975": [621437.55, 3044504.75, 5825000.0],
+        examples=[
+            {
+                "Susceptible_to_Infected": {
+                    "total": {
+                        "0.025": [621344.45, 3041835.25, 5800000.0],
+                        "0.5": [621391.0, 3043170.0, 5812500.0],
+                        "0.975": [621437.55, 3044504.75, 5825000.0],
+                    },
                 },
-            },
-        }],
+            }
+        ],
     )
 
 
@@ -63,7 +70,7 @@ class StatisticQuantiles(BaseModel):
 
     quantiles: dict[str, float] = Field(
         ...,
-        description="Quantile to value mapping, e.g. `{\"0.025\": ..., \"0.5\": ..., \"0.975\": ...}`.",
+        description='Quantile to value mapping, e.g. `{"0.025": ..., "0.5": ..., "0.975": ...}`.',
         examples=[{"0.025": 213000000.0, "0.5": 215000000.0, "0.975": 217000000.0}],
     )
 
@@ -73,7 +80,7 @@ class PeakStatistic(BaseModel):
 
     quantiles: dict[str, float] = Field(
         ...,
-        description="Peak value per quantile, e.g. `{\"0.025\": ..., \"0.5\": ..., \"0.975\": ...}`.",
+        description='Peak value per quantile, e.g. `{"0.025": ..., "0.5": ..., "0.975": ...}`.',
         examples=[{"0.025": 12200000.0, "0.5": 12400000.0, "0.975": 12600000.0}],
     )
     peak_date: str | None = Field(
@@ -89,28 +96,40 @@ class SummaryResults(BaseModel):
     peaks: dict[str, dict[str, PeakStatistic]] | None = Field(
         default=None,
         description="Peak statistics: `compartment -> age_group -> {quantiles, peak_date}`.",
-        examples=[{
-            "Infected": {
-                "total": {
-                    "quantiles": {"0.025": 12200000.0, "0.5": 12400000.0, "0.975": 12600000.0},
-                    "peak_date": "2024-02-14",
+        examples=[
+            {
+                "Infected": {
+                    "total": {
+                        "quantiles": {"0.025": 12200000.0, "0.5": 12400000.0, "0.975": 12600000.0},
+                        "peak_date": "2024-02-14",
+                    },
+                    "0-4": {
+                        "quantiles": {"0.025": 410000.0, "0.5": 420000.0, "0.975": 435000.0},
+                        "peak_date": "2024-02-13",
+                    },
                 },
-                "0-4": {
-                    "quantiles": {"0.025": 410000.0, "0.5": 420000.0, "0.975": 435000.0},
-                    "peak_date": "2024-02-13",
-                },
-            },
-        }],
+            }
+        ],
     )
     totals: dict[str, dict[str, StatisticQuantiles]] | None = Field(
         default=None,
         description="Cumulative transition totals: `transition -> age_group -> {quantiles}`.",
-        examples=[{
-            "Susceptible_to_Infected": {
-                "total": {"quantiles": {"0.025": 213000000.0, "0.5": 215000000.0, "0.975": 217000000.0}},
-                "0-4":   {"quantiles": {"0.025": 11700000.0,  "0.5": 11800000.0,  "0.975": 11900000.0}},
-            },
-        }],
+        examples=[
+            {
+                "Susceptible_to_Infected": {
+                    "total": {
+                        "quantiles": {
+                            "0.025": 213000000.0,
+                            "0.5": 215000000.0,
+                            "0.975": 217000000.0,
+                        }
+                    },
+                    "0-4": {
+                        "quantiles": {"0.025": 11700000.0, "0.5": 11800000.0, "0.975": 11900000.0}
+                    },
+                },
+            }
+        ],
     )
 
 
@@ -120,19 +139,23 @@ class TrajectoryData(BaseModel):
     compartments: dict[str, dict[str, list[float]]] = Field(
         ...,
         description="Compartment values: `{compartment: {age_group: [values]}}`.",
-        examples=[{
-            "Susceptible": {"total": [337330136.0, 334286966.0, 331103421.0]},
-            "Infected":    {"total": [621391.0,    3043170.0,   5812500.0]},
-            "Recovered":   {"total": [0.0,         20000.0,     145000.0]},
-        }],
+        examples=[
+            {
+                "Susceptible": {"total": [337330136.0, 334286966.0, 331103421.0]},
+                "Infected": {"total": [621391.0, 3043170.0, 5812500.0]},
+                "Recovered": {"total": [0.0, 20000.0, 145000.0]},
+            }
+        ],
     )
     transitions: dict[str, dict[str, list[float]]] = Field(
         ...,
         description="Transition counts: `{transition: {age_group: [values]}}`.",
-        examples=[{
-            "Susceptible_to_Infected": {"total": [621391.0, 3043170.0, 5812500.0]},
-            "Infected_to_Recovered":   {"total": [0.0, 20000.0, 145000.0]},
-        }],
+        examples=[
+            {
+                "Susceptible_to_Infected": {"total": [621391.0, 3043170.0, 5812500.0]},
+                "Infected_to_Recovered": {"total": [0.0, 20000.0, 145000.0]},
+            }
+        ],
     )
 
 
@@ -147,6 +170,40 @@ class TrajectoriesResults(BaseModel):
     runs: list[TrajectoryData] = Field(..., description="Data for each simulation run.")
 
 
+class ParameterResults(BaseModel):
+    """Effective parameter values used during the simulation, broadcast to per-step
+    arrays. Useful for plotting `transmission_rate` vs. time after seasonality, scaling,
+    or override transforms have been applied. Only present if `include_parameters` was true.
+    """
+
+    dates: list[str] = Field(
+        ...,
+        description="Dates corresponding to values, matching the simulator's internal grid.",
+        examples=[["2024-01-01", "2024-01-02", "2024-01-03"]],
+    )
+    data: dict[str, dict[str, list[float]]] = Field(
+        ...,
+        description=(
+            "Nested structure: `parameter_name -> age_group -> [values per date]`. "
+            "Scalar parameters and time-varying scalars are broadcast across all age groups; "
+            "age-varying parameters report each group separately. Override windows are baked "
+            "into the returned arrays so they reflect what actually drove the simulation."
+        ),
+        examples=[
+            {
+                "transmission_rate": {
+                    "0-4": [0.300, 0.299, 0.298],
+                    "5-17": [0.300, 0.299, 0.298],
+                },
+                "recovery_rate": {
+                    "0-4": [0.10, 0.10, 0.10],
+                    "5-17": [0.10, 0.10, 0.10],
+                },
+            }
+        ],
+    )
+
+
 class SimulationResultsData(BaseModel):
     """All simulation results."""
 
@@ -154,14 +211,21 @@ class SimulationResultsData(BaseModel):
     transitions: TransitionResults
     summary: SummaryResults | None = None
     trajectories: TrajectoriesResults | None = Field(
-        default=None, description="Raw trajectory data. Only present if `include_trajectories` was true."
+        default=None,
+        description="Raw trajectory data. Only present if `include_trajectories` was true.",
+    )
+    parameters: ParameterResults | None = Field(
+        default=None,
+        description="Effective per-step parameter arrays. Only present if `include_parameters` was true.",
     )
 
 
 class ModelMetadata(BaseModel):
     """Model section of simulation metadata. Mirrors the `model` section of the request."""
 
-    preset: str | None = Field(default=None, description="Preset name if a preset was used.", examples=["SIR"])
+    preset: str | None = Field(
+        default=None, description="Preset name if a preset was used.", examples=["SIR"]
+    )
     compartments: list[str] = Field(
         ...,
         description="Compartment names in the model.",
@@ -191,8 +255,16 @@ class PopulationMetadata(BaseModel):
     total: int = Field(..., description="Total population size.", examples=[338120586])
     age_groups: dict[str, int] = Field(
         ...,
-        description="Age group label to population count, e.g. `{\"0-4\": 18608139}`. Keys are in model (age-ascending) order.",
-        examples=[{"0-4": 18608139, "5-19": 63540783, "20-49": 132780169, "50-64": 63172279, "65+": 60019216}],
+        description='Age group label to population count, e.g. `{"0-4": 18608139}`. Keys are in model (age-ascending) order.',
+        examples=[
+            {
+                "0-4": 18608139,
+                "5-19": 63540783,
+                "20-49": 132780169,
+                "50-64": 63172279,
+                "65+": 60019216,
+            }
+        ],
     )
 
 
@@ -211,8 +283,20 @@ class SimulationMetadata(BaseModel):
     """Metadata about the simulation run, grouped to mirror the request shape."""
 
     model: ModelMetadata = Field(..., description="Model configuration used for the run.")
-    population: PopulationMetadata = Field(..., description="Resolved population configuration and derived counts.")
-    simulation: SimulationRunMetadata = Field(..., description="Simulation execution parameters used for the run.")
+    population: PopulationMetadata = Field(
+        ..., description="Resolved population configuration and derived counts."
+    )
+    simulation: SimulationRunMetadata = Field(
+        ..., description="Simulation execution parameters used for the run."
+    )
+    interventions: list[InterventionConfig] | None = Field(
+        default=None,
+        description="Contact-reduction interventions applied to the run, echoed from the request.",
+    )
+    parameter_transforms: list[ParameterTransformConfig] | None = Field(
+        default=None,
+        description="Parameter transforms applied to the run, echoed from the request.",
+    )
 
 
 class SimulationResponse(BaseModel):
@@ -229,5 +313,9 @@ class SimulationResponse(BaseModel):
         examples=["completed"],
     )
     metadata: SimulationMetadata = Field(..., description="Metadata about the simulation run.")
-    results: SimulationResultsData | None = Field(default=None, description="Simulation results. Null if status is `failed`.")
-    error: str | None = Field(default=None, description="Error message if status is `failed`.", examples=[None])
+    results: SimulationResultsData | None = Field(
+        default=None, description="Simulation results. Null if status is `failed`."
+    )
+    error: str | None = Field(
+        default=None, description="Error message if status is `failed`.", examples=[None]
+    )

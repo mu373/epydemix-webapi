@@ -32,9 +32,9 @@ class TransitionConfig(BaseModel):
         ...,
         description=(
             "Parameter name(s) governing this transition.\n"
-            "- Spontaneous: a single parameter name (the rate), e.g. `[\"recovery_rate\"]`.\n"
+            '- Spontaneous: a single parameter name (the rate), e.g. `["recovery_rate"]`.\n'
             "- Mediated: a two-element list `[rate_param, mediating_compartment]`, "
-            "e.g. `[\"transmission_rate\", \"I\"]`.\n"
+            'e.g. `["transmission_rate", "I"]`.\n'
             "A single string is also accepted and will be wrapped into a list."
         ),
     )
@@ -57,7 +57,7 @@ class ModelConfig(BaseModel):
         default=None,
         description=(
             "List of compartment names for a custom model. Required if no preset.\n"
-            "Example: `[\"S\", \"E\", \"I\", \"R\", \"H\"]`."
+            'Example: `["S", "E", "I", "R", "H"]`.'
         ),
     )
     parameters: dict[str, float | list[float]] = Field(
@@ -69,8 +69,8 @@ class ModelConfig(BaseModel):
             "values, the list length must match the resolved population's age groups.\n"
             "For presets, these override the default values. "
             "For custom models, all parameters used in transitions must be defined here.\n"
-            "Example scalar: `{\"transmission_rate\": 0.3, \"recovery_rate\": 0.1}`.\n"
-            "Example age-varying: `{\"transmission_rate\": [0.35, 0.30, 0.25]}`."
+            'Example scalar: `{"transmission_rate": 0.3, "recovery_rate": 0.1}`.\n'
+            'Example age-varying: `{"transmission_rate": [0.35, 0.30, 0.25]}`.'
         ),
     )
     transitions: list[TransitionConfig] | None = Field(
@@ -107,7 +107,7 @@ class PopulationConfig(BaseModel):
         default=None,
         description=(
             "Custom age group aggregation. Keys are new group names, values are lists of source age groups to merge.\n"
-            "Example: `{\"0-19\": [\"0-4\", \"5-9\", \"10-14\", \"15-19\"], \"65+\": [\"65-69\", \"70-74\", \"75+\"]}`."
+            'Example: `{"0-19": ["0-4", "5-9", "10-14", "15-19"], "65+": ["65-69", "70-74", "75+"]}`.'
         ),
     )
 
@@ -119,9 +119,7 @@ class SimulationConfig(BaseModel):
     end_date: str = Field(..., description="End date in `YYYY-MM-DD` format.")
     Nsim: int = Field(default=10, ge=1, le=1000, description="Number of simulation runs.")
     dt: float = Field(default=1.0, gt=0, description="Time step in days.")
-    seed: int | None = Field(
-        default=None, description="Random seed for reproducibility."
-    )
+    seed: int | None = Field(default=None, description="Random seed for reproducibility.")
     resample_frequency: str = Field(
         default="D",
         description="Resampling frequency. `D` = daily, `W` = weekly, `M` = monthly.",
@@ -139,7 +137,7 @@ class InitialConditionsConfig(BaseModel):
         description=(
             "Percentage of population in each compartment. "
             "Remainder goes to the first compartment.\n"
-            "Example: `{\"I\": 0.01, \"R\": 10.0}`."
+            'Example: `{"I": 0.01, "R": 10.0}`.'
         ),
     )
     compartments: dict[str, list[float]] | None = Field(
@@ -151,9 +149,7 @@ class InitialConditionsConfig(BaseModel):
     def validate_initial_conditions(self) -> "InitialConditionsConfig":
         """Validate that absolute method has compartments specified."""
         if self.method == "absolute" and self.compartments is None:
-            raise ValueError(
-                "'compartments' must be provided when method is 'absolute'"
-            )
+            raise ValueError("'compartments' must be provided when method is 'absolute'")
         return self
 
 
@@ -183,7 +179,7 @@ class SummaryConfig(BaseModel):
         default=None,
         description=(
             "By default, peak statistics are returned for every compartment. "
-            "Pass a list to narrow the response, e.g. `[\"Infected\"]`, "
+            'Pass a list to narrow the response, e.g. `["Infected"]`, '
             "or pass `[]` to explicitly skip returning this summary. "
             "Per-quantile peak values and the median-trajectory peak date are returned for each included age group."
         ),
@@ -192,7 +188,7 @@ class SummaryConfig(BaseModel):
         default=None,
         description=(
             "By default, cumulative totals are returned for every transition. "
-            "Pass a list to narrow the response, e.g. `[\"Susceptible_to_Infected\"]`, "
+            'Pass a list to narrow the response, e.g. `["Susceptible_to_Infected"]`, '
             "or pass `[]` to explicitly skip returning this summary. "
             "Per-quantile total event counts are returned for each included age group."
         ),
@@ -210,7 +206,16 @@ class OutputConfig(BaseModel):
         ),
     )
     include_trajectories: bool = Field(
-        default=False, description="Include raw per-run trajectory data in the response. Can be large."
+        default=False,
+        description="Include raw per-run trajectory data in the response. Can be large.",
+    )
+    include_parameters: bool = Field(
+        default=False,
+        description=(
+            "Include the effective per-step parameter arrays under `results.parameters`. "
+            "Useful for plotting parameters such as `transmission_rate` after balcan/scale/override "
+            "transforms have been applied. Off by default."
+        ),
     )
     compartments: list[str] | None = Field(
         default=None,
@@ -224,7 +229,7 @@ class OutputConfig(BaseModel):
         default=None,
         description=(
             "Age groups to include in both trajectories and summary, "
-            "e.g. `[\"0-4\", \"5-19\", \"total\"]`. Default: all age groups plus `total`."
+            'e.g. `["0-4", "5-19", "total"]`. Default: all age groups plus `total`.'
         ),
     )
     summary: SummaryConfig | None = Field(
@@ -258,5 +263,6 @@ class SimulationRequest(BaseModel):
         ),
     )
     output: OutputConfig | None = Field(
-        default=None, description="Output configuration. Defaults to all compartments/transitions with standard quantiles."
+        default=None,
+        description="Output configuration. Defaults to all compartments/transitions with standard quantiles.",
     )

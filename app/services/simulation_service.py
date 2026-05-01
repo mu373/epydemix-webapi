@@ -7,15 +7,18 @@ and orchestrating the simulation workflow from request to response.
 import uuid
 
 import numpy as np
+import pandas as pd
 from epydemix.model.epimodel import EpiModel
 from epydemix.model.predefined_models import load_predefined_model
 from epydemix.population.population import load_epydemix_population
+from epydemix.utils.utils import compute_simulation_dates
 
 from ..api.v1.schemas.simulation import (
     InitialConditionsConfig,
     InterventionConfig,
     ModelConfig,
     ModelMetadata,
+    ParameterResults,
     ParameterTransformConfig,
     PopulationConfig,
     PopulationMetadata,
@@ -41,8 +44,7 @@ def _build_population_metadata(
 ) -> PopulationMetadata:
     """Build PopulationMetadata from the request and the loaded model population."""
     age_groups = {
-        str(name): int(count)
-        for name, count in zip(model_population.Nk_names, model_population.Nk)
+        str(name): int(count) for name, count in zip(model_population.Nk_names, model_population.Nk)
     }
     return PopulationMetadata(
         name=request_population.name,
@@ -94,9 +96,7 @@ def create_model(config: ModelConfig) -> tuple[EpiModel, dict[str, list[float]]]
     scalar_params: dict[str, float] = {
         k: float(v) for k, v in raw.items() if not isinstance(v, list)
     }
-    list_params: dict[str, list[float]] = {
-        k: v for k, v in raw.items() if isinstance(v, list)
-    }
+    list_params: dict[str, list[float]] = {k: v for k, v in raw.items() if isinstance(v, list)}
 
     if config.preset:
         # Load with the preset's own defaults; user scalars then override them.
@@ -320,6 +320,76 @@ def apply_parameter_transforms(
         )
 
 
+def extract_parameter_results(
+    model: EpiModel, simulation_config: SimulationConfig
+) -> ParameterResults:
+    """Build the per-step effective parameter arrays for the response.
+
+    Walks the same date grid the simulator uses (`compute_simulation_dates`),
+    broadcasts each parameter in `model.parameters` to a `(T, N)` array, then
+    bakes in any `model.overrides` windows (so the array reflects what actually
+    drove the simulation, not just `model.parameters`).
+    """
+    dates = compute_simulation_dates(
+        simulation_config.start_date,
+        simulation_config.end_date,
+        dt=simulation_config.dt,
+    )
+    T = len(dates)
+    age_groups = [str(name) for name in model.population.Nk_names]
+    N = len(age_groups)
+
+    # Convert numpy datetime64 grid to ISO strings for the response.
+    date_strs = [str(np.datetime_as_string(d, unit="D")) for d in dates]
+
+    def _broadcast(value) -> np.ndarray:
+        """Coerce a parameter's stored value (any of scalar / (T,) / (1,N) / (T,N)) to (T, N)."""
+        if not hasattr(value, "__len__"):
+            return np.full((T, N), float(value))
+        arr = np.asarray(value, dtype=float)
+        if arr.ndim == 1 and arr.shape[0] == T:
+            return np.broadcast_to(arr[:, None], (T, N)).copy()
+        if arr.ndim == 1 and arr.shape[0] == N:
+            return np.broadcast_to(arr[None, :], (T, N)).copy()
+        if arr.ndim == 2 and arr.shape == (1, N):
+            return np.broadcast_to(arr, (T, N)).copy()
+        if arr.ndim == 2 and arr.shape == (T, N):
+            return arr.copy()
+        raise ValueError(f"Cannot broadcast parameter array of shape {arr.shape} to (T={T}, N={N})")
+
+    # Pre-compute per-date pandas timestamps for override-window comparison.
+    date_ts = pd.to_datetime(date_strs)
+
+    data: dict[str, dict[str, list[float]]] = {}
+    for name, value in model.parameters.items():
+        try:
+            arr = _broadcast(value)
+        except ValueError:
+            # Unknown shape (e.g., some prior wrapped in np.array of dtype=object). Skip.
+            continue
+
+        # Apply overrides into the array. epydemix stores them in model.overrides
+        # as a dict[name, list[{start_date, end_date, value}]].
+        for override in model.overrides.get(name, []):
+            start = pd.Timestamp(override["start_date"])
+            end = pd.Timestamp(override["end_date"])
+            mask = (date_ts >= start) & (date_ts <= end)
+            ov_value = override["value"]
+            if hasattr(ov_value, "__len__"):
+                ov_arr = np.asarray(ov_value, dtype=float).reshape(-1)
+                if ov_arr.shape[0] == N:
+                    arr[mask, :] = ov_arr[None, :]
+                else:
+                    # Length doesn't match age groups; skip rather than guess.
+                    continue
+            else:
+                arr[mask, :] = float(ov_value)
+
+        data[name] = {age_groups[i]: arr[:, i].tolist() for i in range(N)}
+
+    return ParameterResults(dates=date_strs, data=data)
+
+
 def run_simulation(request: SimulationRequest) -> SimulationResponse:
     """Run an epidemic simulation based on the request configuration.
 
@@ -386,6 +456,10 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
         # Process results
         results_data = process_results(results, request.output, model)
 
+        # Optionally attach effective per-step parameter arrays for plotting.
+        if request.output is not None and request.output.include_parameters:
+            results_data.parameters = extract_parameter_results(model, request.simulation)
+
         # Build metadata
         metadata = SimulationMetadata(
             model=ModelMetadata(
@@ -394,6 +468,8 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
             ),
             population=_build_population_metadata(request.population, model.population),
             simulation=_build_run_metadata(request),
+            interventions=request.interventions,
+            parameter_transforms=request.parameter_transforms,
         )
 
         return SimulationResponse(

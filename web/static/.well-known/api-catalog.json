@@ -40,6 +40,12 @@
         {
           "href": "https://epyscenario-api.isi.it/mcp"
         }
+      ],
+      "mcp-server-card": [
+        {
+          "href": "https://epyscenario-api.isi.it/.well-known/mcp/server-card.json",
+          "type": "application/json"
+        }
       ]
     }
   ]

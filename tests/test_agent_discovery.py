@@ -49,6 +49,23 @@ def test_root_link_header_advertises_resources(client):
     assert 'rel="https://llmstxt.org/full"' in link
     # MCP server rel — only present when the MCP mount is enabled (default)
     assert 'rel="mcp-server"' in link
+    assert 'rel="mcp-server-card"' in link
+
+
+def test_mcp_server_card_serves(client):
+    """`/.well-known/mcp/server-card.json` returns the MCP Server Card (SEP-1649)."""
+    response = client.get("/.well-known/mcp/server-card.json")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+
+    card = response.json()
+    assert "serverInfo" in card
+    assert card["serverInfo"]["name"] == "epydemix-webapi"
+    assert "version" in card["serverInfo"]
+    assert "transport" in card
+    assert card["transport"]["url"].endswith("/mcp")
+    assert "capabilities" in card
+    assert "tools" in card["capabilities"]
 
 
 def test_api_catalog_includes_llms_and_mcp_entries(client):
@@ -66,3 +83,7 @@ def test_api_catalog_includes_llms_and_mcp_entries(client):
     # MCP server (gated by mcp_enabled, which defaults to True)
     assert "mcp-server" in entry
     assert entry["mcp-server"][0]["href"].endswith("/mcp")
+
+    # MCP Server Card (SEP-1649) is registered alongside the MCP endpoint.
+    assert "mcp-server-card" in entry
+    assert entry["mcp-server-card"][0]["href"].endswith("/server-card.json")

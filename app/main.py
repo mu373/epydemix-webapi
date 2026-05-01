@@ -129,6 +129,10 @@ def _link_header() -> str:
     ]
     if settings.mcp_enabled:
         links.append('</mcp>; rel="mcp-server"')
+        links.append(
+            '</.well-known/mcp/server-card.json>; '
+            'rel="mcp-server-card"; type="application/json"'
+        )
     return ", ".join(links)
 
 
@@ -199,11 +203,60 @@ async def api_catalog() -> Response:
     }
     if settings.mcp_enabled:
         entry["mcp-server"] = [{"href": "/mcp"}]
+        entry["mcp-server-card"] = [
+            {
+                "href": "/.well-known/mcp/server-card.json",
+                "type": "application/json",
+            }
+        ]
     catalog = {"linkset": [entry]}
     return Response(
         content=json.dumps(catalog),
         media_type="application/linkset+json",
     )
+
+
+@app.get(
+    "/.well-known/mcp/server-card.json",
+    include_in_schema=False,
+)
+async def mcp_server_card() -> Response:
+    """MCP Server Card for agent discovery.
+
+    Schema being standardized in SEP-1649 / MCP PR #2127:
+    https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2127
+
+    Lets MCP-aware agents discover the server's identity, transport, and
+    capabilities from a well-known location without first connecting.
+    """
+    if not settings.mcp_enabled:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="MCP is disabled on this deployment")
+
+    card = {
+        "schemaVersion": "1",
+        "serverInfo": {
+            "name": "epydemix-webapi",
+            "version": settings.app_version,
+            "description": (
+                "Theoretical, numerical compartmental-model simulator (SIR / SEIR / SIS) "
+                "on age-structured demographic data, exposed as MCP tools."
+            ),
+        },
+        "transport": {
+            "type": "streamable-http",
+            "url": "/mcp",
+        },
+        "capabilities": {
+            "tools": {"listChanged": False},
+        },
+        "links": {
+            "documentation": f"{_DOCS_BASE}/docs/ai-integration",
+            "openapi": f"{_API_BASE}/openapi.json",
+        },
+    }
+    return Response(content=json.dumps(card), media_type="application/json")
 
 
 # MCP server: expose API endpoints as agent tools at /mcp.

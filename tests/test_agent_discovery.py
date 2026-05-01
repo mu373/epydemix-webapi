@@ -44,3 +44,25 @@ def test_root_link_header_advertises_resources(client):
     assert 'rel="service-doc"' in link
     assert 'rel="status"' in link
     assert "/.well-known/api-catalog" in link
+    # llms.txt rels (extension URI rels per llmstxt.org convention)
+    assert 'rel="https://llmstxt.org/"' in link
+    assert 'rel="https://llmstxt.org/full"' in link
+    # MCP server rel — only present when the MCP mount is enabled (default)
+    assert 'rel="mcp-server"' in link
+
+
+def test_api_catalog_includes_llms_and_mcp_entries(client):
+    """The catalog advertises llms.txt, llms-full.txt, and the MCP server."""
+    response = client.get("/.well-known/api-catalog")
+    assert response.status_code == 200
+    entry = response.json()["linkset"][0]
+
+    # llms.txt long-form rels
+    assert "https://llmstxt.org/" in entry
+    assert entry["https://llmstxt.org/"][0]["href"].endswith("/llms.txt")
+    assert "https://llmstxt.org/full" in entry
+    assert entry["https://llmstxt.org/full"][0]["href"].endswith("/llms-full.txt")
+
+    # MCP server (gated by mcp_enabled, which defaults to True)
+    assert "mcp-server" in entry
+    assert entry["mcp-server"][0]["href"].endswith("/mcp")

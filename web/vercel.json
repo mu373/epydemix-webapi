@@ -25,7 +25,7 @@
       "headers": [
         {
           "key": "Link",
-          "value": "</.well-known/api-catalog>; rel=\"api-catalog\"; type=\"application/linkset+json\", </openapi.json>; rel=\"service-desc\"; type=\"application/json\", <https://epyscenario-api.isi.it/api/v1/health>; rel=\"status\"; type=\"application/json\""
+          "value": "</.well-known/api-catalog>; rel=\"api-catalog\"; type=\"application/linkset+json\", </openapi.json>; rel=\"service-desc\"; type=\"application/json\", <https://epyscenario-api.isi.it/api/v1/health>; rel=\"status\"; type=\"application/json\", </llms.txt>; rel=\"https://llmstxt.org/\"; type=\"text/markdown\", </llms-full.txt>; rel=\"https://llmstxt.org/full\"; type=\"text/markdown\", <https://epyscenario-api.isi.it/mcp>; rel=\"mcp-server\""
         }
       ]
     }

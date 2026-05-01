@@ -1,0 +1,109 @@
+---
+sidebar_position: 99
+---
+
+# FAQ
+
+## How do I apply seasonality?
+
+Add `parameter_transforms` with `balcan` method targeting the parameter you want to modulate. Set `max_date` / `min_date` to the seasonal peak / trough and `max_value` / `min_value` to the bounds. The existing parameter value is multiplied by a sinusoidal factor in `[min_value/max_value, 1]`.
+
+```json
+"parameter_transforms": [
+  {
+    "target_parameter": "transmission_rate",
+    "method": "balcan",
+    "max_date": "2024-01-15",
+    "min_date": "2024-07-15",
+    "max_value": 1,
+    "min_value": 0.1
+  }
+]
+```
+
+See [Parameter Transforms › Seasonality](./guides/parameter-transforms.mdx#seasonality) for the math.
+
+## How do I make a parameter age-varying?
+
+Pass a list under `model.parameters` instead of a scalar. The list length must equal the number of resolved age groups (after `age_group_mapping` is applied).
+
+```json
+"parameters": {
+  "transmission_rate": [0.35, 0.35, 0.30, 0.25, 0.20]
+}
+```
+
+See [Model › Parameters](./guides/model/parameters.mdx#age-varying-parameters).
+
+## How do I define a custom model?
+
+Skip `model.preset` and provide three fields under `model`: a list of `compartments`, a `parameters` dict, and a list of `transitions`. Each transition has a `source` compartment, a `target`, a `kind` (`spontaneous` or `mediated`), and `params` referencing entries from `parameters`.
+
+```json
+"model": {
+  "compartments": ["S", "E", "I", "R"],
+  "parameters": {
+    "transmission_rate": 0.3,
+    "incubation_rate": 0.2,
+    "recovery_rate": 0.1
+  },
+  "transitions": [
+    {"source": "S", "target": "E", "kind": "mediated", "params": ["transmission_rate", "I"]},
+    {"source": "E", "target": "I", "kind": "spontaneous", "params": "incubation_rate"},
+    {"source": "I", "target": "R", "kind": "spontaneous", "params": "recovery_rate"}
+  ]
+}
+```
+
+See [Model › Custom Models](./guides/model/custom-models.mdx) for the full structure and a worked SEIRH example.
+
+## How do I override a parameter for a date range?
+
+Use a `parameter_transforms` entry with `method: "override"`. The replacement is absolute (not multiplicative) and always wins for its window. Pass a scalar or a per-age-group list as `value`.
+
+```json
+"parameter_transforms": [
+  {
+    "target_parameter": "transmission_rate",
+    "method": "override",
+    "start_date": "2024-03-01",
+    "end_date": "2024-04-01",
+    "value": 0.05
+  }
+]
+```
+
+See [Parameter Transforms › Override](./guides/parameter-transforms.mdx#override).
+
+## How do I make simulations reproducible?
+
+Pass an integer `seed` under `simulation`. The same request with the same seed returns identical trajectories.
+
+```json
+"simulation": {
+  "start_date": "2024-01-01",
+  "end_date": "2024-06-01",
+  "Nsim": 10,
+  "seed": 42
+}
+```
+
+## How do I see the effective parameter values?
+
+Set `output.include_parameters: true`. The response gains a `results.parameters` section with per-step values for every model parameter, broadcast to per-age-group arrays. Override windows are baked in, so the array reflects what actually drove the simulation.
+
+```json
+"output": { "include_parameters": true }
+```
+
+See [Parameter Transforms › Inspecting the effective parameter values](./guides/parameter-transforms.mdx#inspecting-the-effective-parameter-values).
+
+## What's the difference between `scale` and `override`?
+
+| | `scale` | `override` |
+|---|---|---|
+| Operation | Multiplicative (`baseline × factor`) | Absolute replacement (ignores baseline) |
+| Composition | Stacks with other `scale` and `balcan` transforms | Always wins for its date window |
+| Outside window | Multiplier is 1.0 (no change) | Original baseline applies |
+
+Use `scale` when you want a relative change (e.g. "halve transmission during this window") and `override` when you want a known absolute value (e.g. "set transmission to exactly 0.05 during this window").

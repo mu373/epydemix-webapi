@@ -8,28 +8,6 @@
     {
       "source": "/.well-known/api-catalog",
       "destination": "/.well-known/api-catalog.json"
-    },
-    {
-      "source": "/docs/:path*",
-      "has": [
-        {
-          "type": "header",
-          "key": "accept",
-          "value": "(.*)text/markdown(.*)"
-        }
-      ],
-      "destination": "/docs/:path*.md"
-    },
-    {
-      "source": "/docs/:path*",
-      "has": [
-        {
-          "type": "query",
-          "key": "format",
-          "value": "md"
-        }
-      ],
-      "destination": "/docs/:path*.md"
     }
   ],
   "headers": [
@@ -57,10 +35,6 @@
         {
           "key": "Link",
           "value": "</.well-known/api-catalog>; rel=\"api-catalog\"; type=\"application/linkset+json\", </openapi.json>; rel=\"service-desc\"; type=\"application/json\", <https://epyscenario-api.isi.it/api/v1/health>; rel=\"status\"; type=\"application/json\", </llms.txt>; rel=\"https://llmstxt.org/\"; type=\"text/markdown\", </llms-full.txt>; rel=\"https://llmstxt.org/full\"; type=\"text/markdown\", <https://epyscenario-api.isi.it/mcp>; rel=\"mcp-server\", <https://epyscenario-api.isi.it/.well-known/mcp/server-card.json>; rel=\"mcp-server-card\"; type=\"application/json\""
-        },
-        {
-          "key": "Vary",
-          "value": "Accept"
         }
       ]
     }

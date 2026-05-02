@@ -6,8 +6,6 @@ The API is JSON-based, exposes an OpenAPI 3.1 spec, and returns responses as JSO
 
 ## Docs
 
-Any `/docs/...` URL below can be fetched as plain markdown (instead of HTML) in two ways: send an `Accept: text/markdown` request header, or append `?format=md` to the URL (e.g. `https://epydemix-webapi.vercel.app/docs/intro?format=md`). Use the query-string form when your browsing tool does not let you set request headers.
-
 - [Introduction](https://epydemix-webapi.vercel.app/docs/intro): what the API is, why it exists
 - [Running a Simulation](https://epydemix-webapi.vercel.app/docs/guides/running-a-simulation): end-to-end tutorial showing how to send a JSON request and read the numerical response
 - [Populations](https://epydemix-webapi.vercel.app/docs/guides/populations): age-structured demographic datasets and contact-matrix references for the model

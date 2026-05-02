@@ -19,6 +19,17 @@
         }
       ],
       "destination": "/docs/:path*.md"
+    },
+    {
+      "source": "/docs/:path*",
+      "has": [
+        {
+          "type": "query",
+          "key": "format",
+          "value": "md"
+        }
+      ],
+      "destination": "/docs/:path*.md"
     }
   ],
   "headers": [

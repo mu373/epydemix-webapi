@@ -15,13 +15,13 @@ This guide walks through running your first simulation using the SIR model with 
 
 <CurlBlock>{`curl BASE_URL/populations`}</CurlBlock>
 
-Pick a population name from the list. We'll use `United_States`.
+Pick a population name from the list. We'll use `United_States`. See [Population Presets](./populations/presets.mdx) for the full set of options (contact sources, layers, age-group remapping) and [Custom Populations](./populations/custom-populations.mdx) for inline age groups and contact matrices.
 
 ## 2. Check available presets
 
 <CurlBlock>{`curl BASE_URL/models/presets`}</CurlBlock>
 
-We'll use the `SIR` preset.
+We'll use the `SIR` preset. See [Model Presets](./model/presets.mdx) for the SIR / SEIR / SIS compartments and default parameters, or [Custom Models](./model/custom-models.mdx) to define your own compartments and transitions.
 
 ## 3. Send a simulation request
 
@@ -165,6 +165,27 @@ Everything under `output` is optional; sensible defaults cover most cases. You c
 ## 6. Increase Nsim for production use
 
 Start with `Nsim: 10` while testing, then increase to 100 or more for reliable estimates.
+
+## 7. One-liner example
+
+For a quick read of one stat from the response, pipe through [`jq`](https://jqlang.org/). For example, the median peak of `Infected` summed across all age groups along with its date:
+
+<CurlBlock>
+{`curl -s -X POST BASE_URL/simulations \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": {"preset": "SIR", "parameters": {"transmission_rate": 0.3, "recovery_rate": 0.1}},
+    "population": {"name": "United_States"},
+    "simulation": {"start_date": "2024-01-01", "end_date": "2024-06-01", "Nsim": 100}
+  }' | jq '.results.summary.peaks.Infected.total | {peak_date, median: .quantiles["0.5"]}'`}
+</CurlBlock>
+
+```json
+{
+  "peak_date": "2024-01-06",
+  "median": 290283372.5
+}
+```
 
 :::tip
 Use the [API Reference](/api-reference) to build and send requests interactively without writing curl commands.

@@ -62,6 +62,11 @@ def _per_page_path(rel_doc_path: str) -> Path:
 
 
 def main() -> None:
+    # Release notes mirror what's already on GitHub Releases; we still want
+    # per-page markdown mirrors so the in-page Copy / Open in chat widget
+    # works on each release-notes page, but we skip them in the bundled
+    # llms-full.txt (release history is noise for RAG / agent ingestion).
+    bundle_skip_dirs = {"release-notes"}
     files = sorted(
         list(DOCS_DIR.rglob("*.mdx")) + list(DOCS_DIR.rglob("*.md")),
         key=lambda p: p.relative_to(DOCS_DIR).as_posix(),
@@ -78,26 +83,37 @@ def main() -> None:
         "---",
         "",
     ]
+    bundle_count = 0
     for path in files:
         rel = path.relative_to(DOCS_DIR).as_posix()
         cleaned = _clean(path.read_text(encoding="utf-8"))
+        in_bundle_skip = any(part in bundle_skip_dirs for part in Path(rel).parts)
 
-        # 1) Append into llms-full.txt
-        parts.append(f"<!-- source: web/docs/{rel} -->")
-        parts.append("")
-        parts.append(cleaned)
-        parts.append("---")
-        parts.append("")
+        # 1) Append into llms-full.txt (unless excluded).
+        if not in_bundle_skip:
+            parts.append(f"<!-- source: web/docs/{rel} -->")
+            parts.append("")
+            parts.append(cleaned)
+            parts.append("---")
+            parts.append("")
+            bundle_count += 1
 
-        # 2) Write a per-page mirror at /docs/<path>.md
+        # 2) Write a per-page mirror at /docs/<path>.md for every page,
+        #    including the bundle-skipped ones, so the in-page widget works.
         per_page = _per_page_path(rel)
         per_page.parent.mkdir(parents=True, exist_ok=True)
         per_page.write_text(cleaned, encoding="utf-8")
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text("\n".join(parts), encoding="utf-8")
-    print(f"wrote {OUTPUT.relative_to(Path.cwd())} ({OUTPUT.stat().st_size:,} bytes from {len(files)} files)")
-    print(f"wrote per-page mirrors under {PER_PAGE_DIR.relative_to(Path.cwd())}/")
+    print(
+        f"wrote {OUTPUT.relative_to(Path.cwd())} "
+        f"({OUTPUT.stat().st_size:,} bytes from {bundle_count} files)"
+    )
+    print(
+        f"wrote per-page mirrors under {PER_PAGE_DIR.relative_to(Path.cwd())}/ "
+        f"({len(files)} files)"
+    )
 
 
 if __name__ == "__main__":

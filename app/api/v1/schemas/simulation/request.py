@@ -1,6 +1,6 @@
 """Simulation request schemas: model, population, run, output, and the top-level request."""
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal, TypeAlias
 
 from pydantic import BaseModel, BeforeValidator, Field, model_validator
 
@@ -57,7 +57,7 @@ class ModelConfig(BaseModel):
         default=None,
         description=(
             "List of compartment names for a custom model. Required if no preset.\n"
-            'Example: `["S", "E", "I", "R", "H"]`.'
+            '- Example: `["S", "E", "I", "R", "H"]`.'
         ),
     )
     parameters: dict[str, float | list[float]] = Field(
@@ -68,9 +68,9 @@ class ModelConfig(BaseModel):
             "list of one value per age group (age-varying). For age-varying "
             "values, the list length must match the resolved population's age groups.\n"
             "For presets, these override the default values. "
-            "For custom models, all parameters used in transitions must be defined here.\n"
-            'Example scalar: `{"transmission_rate": 0.3, "recovery_rate": 0.1}`.\n'
-            'Example age-varying: `{"transmission_rate": [0.35, 0.30, 0.25]}`.'
+            "For custom models, all parameters used in transitions must be defined here. Examples:\n"
+            '- Scalar parameter: `{"transmission_rate": 0.3, "recovery_rate": 0.1}`.\n'
+            '- Age-varying parameter: `{"transmission_rate": [0.35, 0.30, 0.25]}`.'
         ),
     )
     transitions: list[TransitionConfig] | None = Field(
@@ -91,10 +91,17 @@ class ModelConfig(BaseModel):
         return self
 
 
-class PopulationConfig(BaseModel):
-    """Population configuration."""
+class BuiltinPopulationConfig(BaseModel):
+    """Population loaded from the epydemix data repository (countries, regions, etc.)."""
 
-    name: str = Field(..., description="Population name, e.g. `United_States`.")
+    source: Literal["builtin"] = Field(
+        default="builtin",
+        description="Loads a published population by name from the epydemix data repo.",
+    )
+    name: str = Field(
+        ...,
+        description="Population name in epydemix, e.g. `United_States`. It should be one of the population available in `GET /populations` endpoint.",
+    )
     contacts_source: str | None = Field(
         default=None,
         description="Contact matrix source.\nOptions: `prem_2017`, `prem_2021`, `mistry_2021`.",
@@ -107,9 +114,73 @@ class PopulationConfig(BaseModel):
         default=None,
         description=(
             "Custom age group aggregation. Keys are new group names, values are lists of source age groups to merge.\n"
-            'Example: `{"0-19": ["0-4", "5-9", "10-14", "15-19"], "65+": ["65-69", "70-74", "75+"]}`.'
+            '- Example: `{"0-19": ["0-4", "5-9", "10-14", "15-19"], "65+": ["65-69", "70-74", "75+"]}`.'
         ),
     )
+
+
+class CustomPopulationConfig(BaseModel):
+    """Fully custom population."""
+
+    source: Literal["custom"] = Field(
+        ...,
+        description="Defines age groups and contact matrices inline.",
+    )
+    name: str = Field(
+        default="Custom Population",
+        description="Display label for this population.",
+    )
+    age_groups: dict[str, int] = Field(
+        ...,
+        description=(
+            "Age group label to population count. Insertion order defines the row/column "
+            "order used by every entry in `contact_matrices`.\n"
+            '- Homogeneous (single group): `{"A": 100000}`.\n'
+            '- Two groups: `{"A": 100, "B": 100}`.'
+        ),
+    )
+    contact_matrices: dict[str, list[list[float]]] = Field(
+        ...,
+        description=(
+            "Contact matrices keyed by layer name. The keys define the layer set; each "
+            "matrix must be square with one row/column per `age_groups` entry, in the same "
+            'order. Layer name `"overall"` is reserved by epydemix and rejected.\n'
+            '- Homogeneous (1x1): `{"all": [[1.0]]}`.\n'
+            '- Two groups (2x2): `{"all": [[0.2, 0.3], [0.3, 0.2]]}`.'
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _validate_shapes(self) -> "CustomPopulationConfig":
+        if not self.age_groups:
+            raise ValueError("'age_groups' must contain at least one entry")
+        if not self.contact_matrices:
+            raise ValueError("'contact_matrices' must contain at least one layer")
+        n = len(self.age_groups)
+        for layer, matrix in self.contact_matrices.items():
+            if layer == "overall":
+                raise ValueError(
+                    "'overall' is a reserved layer name in epydemix; use a different "
+                    "name (e.g. 'all')"
+                )
+            if len(matrix) != n:
+                raise ValueError(
+                    f"contact_matrices['{layer}'] has {len(matrix)} rows but "
+                    f"age_groups has {n} entries"
+                )
+            for i, row in enumerate(matrix):
+                if len(row) != n:
+                    raise ValueError(
+                        f"contact_matrices['{layer}'] row {i} has length {len(row)} "
+                        f"but expected {n} (square matrix)"
+                    )
+        return self
+
+
+PopulationConfig: TypeAlias = Annotated[
+    BuiltinPopulationConfig | CustomPopulationConfig,
+    Field(discriminator="source"),
+]
 
 
 class SimulationConfig(BaseModel):
@@ -137,7 +208,7 @@ class InitialConditionsConfig(BaseModel):
         description=(
             "Percentage of population in each compartment. "
             "Remainder goes to the first compartment.\n"
-            'Example: `{"I": 0.01, "R": 10.0}`.'
+            '- Example: `{"I": 0.01, "R": 10.0}`.'
         ),
     )
     compartments: dict[str, list[float]] | None = Field(
@@ -242,7 +313,10 @@ class SimulationRequest(BaseModel):
     """Complete simulation request."""
 
     model: ModelConfig = Field(..., description="Epidemic model configuration.")
-    population: PopulationConfig = Field(..., description="Population configuration.")
+    population: PopulationConfig = Field(
+        ...,
+        description="Population configuration. It can load preset population from epydemix, or a custom population defined inline.",
+    )
     simulation: SimulationConfig = Field(..., description="Simulation execution parameters.")
     initial_conditions: InitialConditionsConfig | None = Field(
         default=None, description="Initial conditions. Defaults to a small infected fraction."
@@ -266,3 +340,16 @@ class SimulationRequest(BaseModel):
         default=None,
         description="Output configuration. Defaults to all compartments/transitions with standard quantiles.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _default_population_source(cls, data: Any) -> Any:
+        # Pydantic discriminated unions require the discriminator field to be
+        # present. Pre-existing payloads use `{"population": {"name": "..."}}`
+        # without a `source` field; treat those as the builtin branch so the
+        # schema change is non-breaking.
+        if isinstance(data, dict):
+            pop = data.get("population")
+            if isinstance(pop, dict) and "source" not in pop:
+                data = {**data, "population": {**pop, "source": "builtin"}}
+        return data

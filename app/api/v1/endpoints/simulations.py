@@ -28,6 +28,31 @@ SIMULATION_REQUEST_EXAMPLES: dict[str, Example] = {
             },
         },
     ),
+    "SIR in custom population (homogeneous)": Example(
+        summary="SIR on a custom inline population",
+        description=(
+            "Single-group population of 100,000 with a 1x1 contact matrix specified "
+            "inline. No epydemix data repo lookup; `age_groups` insertion order "
+            "defines the contact-matrix row/col order."
+        ),
+        value={
+            "model": {
+                "preset": "SIR",
+                "parameters": {"transmission_rate": 0.3, "recovery_rate": 0.1},
+            },
+            "population": {
+                "source": "custom",
+                "name": "Custom Population 1",
+                "age_groups": {"A": 100000},
+                "contact_matrices": {"all": [[1.0]]},
+            },
+            "simulation": {
+                "start_date": "2024-01-01",
+                "end_date": "2024-03-01",
+                "Nsim": 5,
+            },
+        },
+    ),
 }
 
 

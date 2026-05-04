@@ -5,6 +5,8 @@ Re-exports the public schema names so callers can keep importing from
 """
 
 from .request import (
+    BuiltinPopulationConfig,
+    CustomPopulationConfig,
     InitialConditionsConfig,
     InterventionConfig,
     ModelConfig,
@@ -40,6 +42,8 @@ from .transforms import (
 
 __all__ = [
     # request
+    "BuiltinPopulationConfig",
+    "CustomPopulationConfig",
     "InitialConditionsConfig",
     "InterventionConfig",
     "ModelConfig",

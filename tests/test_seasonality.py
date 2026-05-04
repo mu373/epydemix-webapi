@@ -168,8 +168,8 @@ def test_balcan_transform_writes_expected_array_into_model():
     """
     from app.api.v1.schemas.simulation import (
         BalcanTransform,
+        BuiltinPopulationConfig,
         ModelConfig,
-        PopulationConfig,
         SimulationConfig,
     )
     from app.services.simulation_service import (
@@ -182,7 +182,7 @@ def test_balcan_transform_writes_expected_array_into_model():
     val_min, val_max = 0.1, 1.0  # multiplier in [0.1, 1.0]
 
     model, _ = create_model(ModelConfig(preset="SIR", parameters={"transmission_rate": baseline}))
-    setup_population(model, PopulationConfig(name="United_States"))
+    setup_population(model, BuiltinPopulationConfig(name="United_States"))
 
     sim_cfg = SimulationConfig(start_date="2024-01-01", end_date="2024-12-31", Nsim=1)
     transform = BalcanTransform(

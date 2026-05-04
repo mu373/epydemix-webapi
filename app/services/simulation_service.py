@@ -10,10 +10,11 @@ import numpy as np
 import pandas as pd
 from epydemix.model.epimodel import EpiModel
 from epydemix.model.predefined_models import load_predefined_model
-from epydemix.population.population import load_epydemix_population
+from epydemix.population.population import Population, load_epydemix_population
 from epydemix.utils.utils import compute_simulation_dates
 
 from ..api.v1.schemas.simulation import (
+    CustomPopulationConfig,
     InitialConditionsConfig,
     InterventionConfig,
     ModelConfig,
@@ -46,7 +47,23 @@ def _build_population_metadata(
     age_groups = {
         str(name): int(count) for name, count in zip(model_population.Nk_names, model_population.Nk)
     }
+    contact_matrices = {
+        str(layer): np.asarray(matrix, dtype=float).tolist()
+        for layer, matrix in (model_population.contact_matrices or {}).items()
+    }
+    if isinstance(request_population, CustomPopulationConfig):
+        return PopulationMetadata(
+            source="custom",
+            name=request_population.name,
+            contacts_source=None,
+            layers=list(request_population.contact_matrices.keys()),
+            age_group_mapping=None,
+            total=int(model_population.total_population),
+            age_groups=age_groups,
+            contact_matrices=contact_matrices,
+        )
     return PopulationMetadata(
+        source="builtin",
         name=request_population.name,
         contacts_source=_resolve_contacts_source(
             request_population.name, request_population.contacts_source
@@ -55,6 +72,7 @@ def _build_population_metadata(
         age_group_mapping=request_population.age_group_mapping,
         total=int(model_population.total_population),
         age_groups=age_groups,
+        contact_matrices=contact_matrices,
     )
 
 
@@ -154,17 +172,31 @@ def apply_age_varying_parameters(
 def setup_population(model: EpiModel, config: PopulationConfig) -> None:
     """Load and set population for the model.
 
-    Loads a population from the epydemix data repository and attaches it
-    to the model.
+    For builtin populations, loads from the epydemix data repository.
+    For custom populations, builds a Population in-memory from the inline
+    `age_groups` dict and `contact_matrices` dict.
 
     Parameters
     ----------
     model : EpiModel
         EpiModel to configure with population data.
-    config : PopulationConfig
-        Population configuration specifying location, contact source,
-        and optional layer filtering.
+    config : BuiltinPopulationConfig or CustomPopulationConfig
+        Population configuration. The discriminator selects the branch.
     """
+    if isinstance(config, CustomPopulationConfig):
+        # Insertion order of `age_groups` defines the contact-matrix row/col order.
+        names = list(config.age_groups.keys())
+        sizes = [float(config.age_groups[k]) for k in names]
+        population = Population(name=config.name)
+        population.add_population(Nk=sizes, Nk_names=names)
+        for layer_name, matrix in config.contact_matrices.items():
+            population.add_contact_matrix(
+                contact_matrix=np.array(matrix, dtype=float),
+                layer_name=layer_name,
+            )
+        model.set_population(population)
+        return
+
     population = load_epydemix_population(
         population_name=config.name,
         contacts_source=config.contacts_source,
@@ -483,6 +515,28 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
         # Config validation errors propagate to the route as 422.
         raise
     except Exception as e:
+        if isinstance(request.population, CustomPopulationConfig):
+            pop_meta = PopulationMetadata(
+                source="custom",
+                name=request.population.name,
+                contacts_source=None,
+                layers=list(request.population.contact_matrices.keys()),
+                age_group_mapping=None,
+                total=0,
+                age_groups={},
+                contact_matrices=request.population.contact_matrices,
+            )
+        else:
+            pop_meta = PopulationMetadata(
+                source="builtin",
+                name=request.population.name,
+                contacts_source=request.population.contacts_source,
+                layers=request.population.layers,
+                age_group_mapping=request.population.age_group_mapping,
+                total=0,
+                age_groups={},
+                contact_matrices={},
+            )
         return SimulationResponse(
             simulation_id=simulation_id,
             status="failed",
@@ -491,14 +545,7 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
                     preset=request.model.preset,
                     compartments=[],
                 ),
-                population=PopulationMetadata(
-                    name=request.population.name,
-                    contacts_source=request.population.contacts_source,
-                    layers=request.population.layers,
-                    age_group_mapping=request.population.age_group_mapping,
-                    total=0,
-                    age_groups={},
-                ),
+                population=pop_meta,
                 simulation=_build_run_metadata(request),
             ),
             error=str(e),

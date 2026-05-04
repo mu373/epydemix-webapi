@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 from .request import InterventionConfig
 from .transforms import ParameterTransformConfig
 
+PopulationSource = Literal["builtin", "custom"]
+
 
 class CompartmentResults(BaseModel):
     """Compartment trajectory quantiles."""
@@ -236,10 +238,18 @@ class ModelMetadata(BaseModel):
 class PopulationMetadata(BaseModel):
     """Population section of simulation metadata. Mirrors the `population` section of the request and adds resolved/derived values."""
 
+    source: PopulationSource = Field(
+        default="builtin",
+        description=(
+            "Which population branch the request resolved to. `builtin` = loaded "
+            "from the epydemix data repo; `custom` = supplied inline."
+        ),
+        examples=["builtin"],
+    )
     name: str = Field(..., description="Population identifier.", examples=["United_States"])
     contacts_source: str | None = Field(
         default=None,
-        description="Resolved contact matrix source actually used.",
+        description="Resolved contact matrix source actually used. `null` for custom populations.",
         examples=["mistry_2021"],
     )
     layers: list[str] | None = Field(
@@ -249,7 +259,7 @@ class PopulationMetadata(BaseModel):
     )
     age_group_mapping: dict[str, list[str]] | None = Field(
         default=None,
-        description="Custom age group aggregation, echoed back if the request supplied one.",
+        description="Custom age group aggregation, echoed back if the request supplied one. `null` for custom populations.",
         examples=[{"0-19": ["0-4", "5-9", "10-14", "15-19"], "20+": ["20-24", "25-29", "30-34"]}],
     )
     total: int = Field(..., description="Total population size.", examples=[338120586])
@@ -265,6 +275,14 @@ class PopulationMetadata(BaseModel):
                 "65+": 60019216,
             }
         ],
+    )
+    contact_matrices: dict[str, list[list[float]]] = Field(
+        default_factory=dict,
+        description=(
+            "Per-layer contact matrices actually used by the simulation, keyed by layer name. "
+            "Row/column order matches `age_groups` insertion order."
+        ),
+        examples=[{"all": [[1.0]]}],
     )
 
 

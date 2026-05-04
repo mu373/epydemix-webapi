@@ -546,8 +546,8 @@ def test_simulation_transform_no_aliasing():
     step's stored array instead of multiplying into it.
     """
     from app.api.v1.schemas.simulation import (
+        BuiltinPopulationConfig,
         ModelConfig,
-        PopulationConfig,
         ScaleTransform,
         SimulationConfig,
     )
@@ -558,7 +558,7 @@ def test_simulation_transform_no_aliasing():
     )
 
     model, _ = create_model(ModelConfig(preset="SIR", parameters={"transmission_rate": 1.0}))
-    setup_population(model, PopulationConfig(name="United_States"))
+    setup_population(model, BuiltinPopulationConfig(name="United_States"))
 
     sim_cfg = SimulationConfig(start_date="2024-01-01", end_date="2024-01-10", Nsim=1)
     transforms = [

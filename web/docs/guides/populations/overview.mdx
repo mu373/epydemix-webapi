@@ -12,7 +12,7 @@ Specifically, a population provides:
 - **Population demographics by age group**: named age bins with a population count each (e.g. `0-4`, `5-19`, `20-49`, `50-64`, `65+`).
 - **Contact matrices by age group**: one square matrix per layer (`home`, `work`, `school`, `community`), where entry $(i, j)$ is the average number of contacts a person in group $i$ has with people in group $j$.
 
-You can either pick a built-in [population preset](./presets.mdx) (real-world demographics and contact data for a specific country) or define a [custom population](./custom-populations.mdx) inline.
+You can either pick a built-in [population preset](./presets.mdx) (real-world demographics and contact data for a specific country or subnational region, such as a US state) or define a [custom population](./custom-populations.mdx) inline.
 
 ## Contact Matrix
 The contact matrix is what lets the model capture **heterogeneity of contacts across age groups**. In real data, the diagonal is typically the largest entry (people interact most with peers their own age, **assortative mixing**), and the strength varies by setting. The `school` layer is dominated by contacts among school-age groups, `work` is concentrated in working-age groups, and `home` mixes parents with children. Splitting contacts by layer makes this structure explicit, and lets [interventions](../running-a-simulation.mdx) target a single setting (e.g. closing schools) without touching the others.

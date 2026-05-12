@@ -310,6 +310,72 @@ def test_calculated_param_not_echoed_in_metadata(client):
     assert "recovery_rate" in response.json()["results"]["parameters"]["data"]
 
 
+def test_calculated_param_uses_reserved_eigenvalue(client):
+    """R0 calibration via the reserved CONTACT_MATRIX_EIGENVALUE_ALL constant.
+
+    Sets `R0` and derives `transmission_rate = R0 * gamma / eigenvalue`. The
+    effective transmission_rate in `results.parameters` should match the
+    closed-form value computed from the population's overall contact matrix.
+    """
+    request = _custom_sir_request(
+        {
+            "R0": 1.5,
+            "gamma": 0.1,
+            "recovery_rate": "gamma",
+            "transmission_rate": "R0 * gamma / CONTACT_MATRIX_EIGENVALUE_ALL",
+        }
+    )
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200, response.text
+
+    # Independently compute the expected eigenvalue from the same population.
+    import numpy as np
+
+    from app.services.population_service import _load_population_cached
+
+    pop = _load_population_cached("United_States")
+    summed = sum(np.asarray(m, dtype=float) for m in pop.contact_matrices.values())
+    eigenvalue = float(np.max(np.abs(np.linalg.eigvals(summed))))
+    expected_beta = 1.5 * 0.1 / eigenvalue
+
+    series = next(iter(response.json()["results"]["parameters"]["data"]["transmission_rate"].values()))
+    assert series[0] == pytest.approx(expected_beta, rel=1e-6)
+
+
+def test_calculated_param_reserved_name_collision_rejected(client):
+    """A user parameter named like a reserved constant → 422."""
+    request = _custom_sir_request(
+        {
+            "transmission_rate": 0.3,
+            "recovery_rate": 0.1,
+            "CONTACT_MATRIX_EIGENVALUE_ALL": 5.0,
+        }
+    )
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "CONTACT_MATRIX_EIGENVALUE_ALL" in detail
+    assert "reserved" in detail.lower()
+
+
+def test_calculated_param_reserved_value_not_in_results(client):
+    """Reserved names exist only in the eval namespace, not in `results.parameters`."""
+    request = _custom_sir_request(
+        {
+            "R0": 1.5,
+            "gamma": 0.1,
+            "recovery_rate": "gamma",
+            "transmission_rate": "R0 * gamma / CONTACT_MATRIX_EIGENVALUE_ALL",
+        }
+    )
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200, response.text
+    data = response.json()["results"]["parameters"]["data"]
+    assert "CONTACT_MATRIX_EIGENVALUE_ALL" not in data
+    # The downstream calculated value, however, *is* stored and visible.
+    assert "transmission_rate" in data
+
+
 def test_seir_vax_end_to_end(client):
     """Small SEIR + vaccinated branch model with one calculated rate.
 

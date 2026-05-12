@@ -29,7 +29,11 @@ from ..api.v1.schemas.simulation import (
     SimulationResponse,
     SimulationRunMetadata,
 )
-from ..utils.calculated_parameters import evaluate_expressions
+from ..utils.calculated_parameters import (
+    RESERVED_NAMES,
+    compute_reserved_params,
+    evaluate_expressions,
+)
 from ..utils.parameter_transforms import (
     apply_transform_to_parameter,
     compute_transform_array,
@@ -384,6 +388,11 @@ def apply_calculated_parameters(
     each expression sees the post-transform shapes of its sources and numpy
     broadcasting carries time- and age-variation through naturally.
 
+    Reserved names (e.g. ``CONTACT_MATRIX_EIGENVALUE_ALL``) are computed from
+    the model state and injected into the eval namespace alongside
+    ``model.parameters``. They are NOT stored on the model and so do not
+    appear in ``results.parameters``.
+
     Mutates `model` in place. Raises `ValueError` (forwarded as 422) on
     syntax errors, disallowed AST nodes, undefined name references, or
     circular dependencies among expressions.
@@ -391,7 +400,9 @@ def apply_calculated_parameters(
     if not expr_params:
         return
 
-    results = evaluate_expressions(expr_params, dict(model.parameters))
+    namespace: dict[str, object] = dict(model.parameters)
+    namespace.update(compute_reserved_params(model))
+    results = evaluate_expressions(expr_params, namespace)
     for name, value in results.items():
         model.add_parameter(parameter_name=name, value=value)
 
@@ -494,6 +505,21 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
     simulation_id = f"sim_{uuid.uuid4().hex[:12]}"
 
     try:
+        # Reject any user parameter name that collides with a reserved
+        # SCREAMING_SNAKE_CASE name (e.g. CONTACT_MATRIX_EIGENVALUE_ALL).
+        # These are computed from the model state and injected into the
+        # eval namespace by `apply_calculated_parameters`; allowing a
+        # user override would silently mask the model-derived value.
+        user_param_names = set((request.model.parameters or {}).keys())
+        reserved_collisions = user_param_names & RESERVED_NAMES
+        if reserved_collisions:
+            raise ValueError(
+                f"Parameter name(s) {sorted(reserved_collisions)} collide with "
+                f"reserved name(s) injected by the calculated-parameter evaluator. "
+                f"Reserved names are SCREAMING_SNAKE_CASE constants derived from "
+                f"the model state and cannot be overridden."
+            )
+
         # Create model (scalar params applied; age-varying and expression
         # params deferred — the former until population is set, the latter
         # until after transforms so source shapes propagate through).

@@ -6,13 +6,21 @@ of AST nodes (arithmetic operators only), topologically sorted by their
 inter-dependencies, then evaluated against the already-resolved parameter
 values. Source-parameter shapes (scalar, ``(1, N)``, ``(T,)``, ``(T, N)``)
 propagate through the expression via numpy broadcasting.
+
+Reserved names (SCREAMING_SNAKE_CASE) are derived from the model state and
+injected into the eval namespace alongside user parameters; see
+``compute_reserved_params``.
 """
 
 from __future__ import annotations
 
 import ast
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from epydemix.model.epimodel import EpiModel
 
 _ALLOWED_BINOPS: tuple[type[ast.operator], ...] = (
     ast.Add,
@@ -195,3 +203,36 @@ def evaluate_expressions(
             namespace[name] = stored
 
     return results
+
+
+# Reserved names are SCREAMING_SNAKE_CASE constants derived from the model
+# state and injected into the eval namespace. They are NOT stored as
+# parameters on the model, so they do not appear in `results.parameters`;
+# they exist only as ingredients in user expressions. Adding a new reserved
+# name means adding one branch to ``compute_reserved_params``.
+RESERVED_NAMES: frozenset[str] = frozenset({"CONTACT_MATRIX_EIGENVALUE_ALL"})
+
+
+def compute_reserved_params(model: EpiModel) -> dict[str, float]:
+    """Compute reserved-name values from the model state.
+
+    Currently registers:
+
+    - ``CONTACT_MATRIX_EIGENVALUE_ALL``: dominant eigenvalue (largest by
+      magnitude) of the sum across all contact-matrix layers in
+      ``model.population.contact_matrices``. Useful for R0 calibration,
+      e.g. ``"transmission_rate": "R0 * gamma / CONTACT_MATRIX_EIGENVALUE_ALL"``.
+
+    Future extension for per-layer eigenvalues should follow the
+    ``CONTACT_MATRIX_EIGENVALUE_<layer>`` convention (literal layer key).
+    """
+    matrices = getattr(model.population, "contact_matrices", None) or {}
+    if not matrices:
+        raise ValueError(
+            "Cannot compute reserved parameter 'CONTACT_MATRIX_EIGENVALUE_ALL': "
+            "the population has no contact matrices."
+        )
+    summed = sum(np.asarray(m, dtype=float) for m in matrices.values())
+    eigenvalues = np.linalg.eigvals(summed)
+    dominant = float(np.max(np.abs(eigenvalues)))
+    return {"CONTACT_MATRIX_EIGENVALUE_ALL": dominant}

@@ -29,6 +29,7 @@ from ..api.v1.schemas.simulation import (
     SimulationResponse,
     SimulationRunMetadata,
 )
+from ..utils.calculated_parameters import evaluate_expressions
 from ..utils.parameter_transforms import (
     apply_transform_to_parameter,
     compute_transform_array,
@@ -88,14 +89,22 @@ def _build_run_metadata(request: SimulationRequest) -> SimulationRunMetadata:
     )
 
 
-def create_model(config: ModelConfig) -> tuple[EpiModel, dict[str, list[float]]]:
+def create_model(
+    config: ModelConfig,
+) -> tuple[EpiModel, dict[str, list[float]], dict[str, str]]:
     """Create an EpiModel from configuration.
 
-    Splits parameters into scalar and list-typed groups. Scalars are wired in
-    immediately (presets seed defaults via the preset constructor, then user
-    scalars upsert via `add_parameter`); list (age-varying) values are returned
-    to the caller so they can be added after `setup_population` has run, since
-    epydemix needs `population.num_groups` for shape checks.
+    Splits parameters into three groups by value type:
+
+    - Scalars (``float`` / ``int``) are wired in immediately. Presets seed
+      defaults via the preset constructor; user scalars then upsert via
+      ``add_parameter``.
+    - List values (age-varying) are returned for application after
+      ``setup_population`` has run, since epydemix needs
+      ``population.num_groups`` for shape checks.
+    - String values are expressions over other parameters and are returned
+      for evaluation after ``parameter_transforms`` so transformed source
+      shapes propagate through.
 
     Parameters
     ----------
@@ -105,16 +114,17 @@ def create_model(config: ModelConfig) -> tuple[EpiModel, dict[str, list[float]]]
 
     Returns
     -------
-    tuple of (EpiModel, dict)
-        The model with scalar parameters applied, plus a dictionary of any
-        age-varying parameters that still need to be added once the
-        population is set.
+    tuple of (EpiModel, dict, dict)
+        The model with scalar parameters applied, the age-varying parameters
+        deferred until population setup, and the expression-valued parameters
+        deferred until after transforms.
     """
     raw = config.parameters or {}
     scalar_params: dict[str, float] = {
-        k: float(v) for k, v in raw.items() if not isinstance(v, list)
+        k: float(v) for k, v in raw.items() if isinstance(v, (int, float)) and not isinstance(v, bool)
     }
     list_params: dict[str, list[float]] = {k: v for k, v in raw.items() if isinstance(v, list)}
+    expr_params: dict[str, str] = {k: v for k, v in raw.items() if isinstance(v, str)}
 
     if config.preset:
         # Load with the preset's own defaults; user scalars then override them.
@@ -123,7 +133,7 @@ def create_model(config: ModelConfig) -> tuple[EpiModel, dict[str, list[float]]]
         model: EpiModel = load_predefined_model(config.preset)  # type: ignore[assignment]
         for name, value in scalar_params.items():
             model.add_parameter(parameter_name=name, value=value)
-        return model, list_params
+        return model, list_params, expr_params
 
     model = EpiModel(compartments=config.compartments, parameters=scalar_params)
 
@@ -142,7 +152,7 @@ def create_model(config: ModelConfig) -> tuple[EpiModel, dict[str, list[float]]]
                 params=params,
             )
 
-    return model, list_params
+    return model, list_params, expr_params
 
 
 def apply_age_varying_parameters(
@@ -291,6 +301,7 @@ def apply_parameter_transforms(
     model: EpiModel,
     transforms: list[ParameterTransformConfig] | None,
     simulation_config: SimulationConfig,
+    calculated_names: set[str] | None = None,
 ) -> None:
     """Apply parameter transforms (`balcan` / `scale` / `override`) to the model.
 
@@ -300,12 +311,23 @@ def apply_parameter_transforms(
     `model.overrides`, so they always win for their date window. All target
     parameter names are validated up front so a typo surfaces as a clean error.
 
+    Calculated (expression-valued) parameters cannot be transform targets:
+    transforms apply to source parameters and propagate through expressions
+    via numpy broadcasting when `apply_calculated_parameters` runs afterward.
+
     Mutates `model` in place.
     """
     if not transforms:
         return
 
+    calc_names = calculated_names or set()
     for transform in transforms:
+        if transform.target_parameter in calc_names:
+            raise ValueError(
+                f"parameter_transforms[*].target_parameter '{transform.target_parameter}' "
+                f"is a calculated parameter; transforms must target source parameters "
+                f"(scalar or age-varying) so they propagate through the expression."
+            )
         if transform.target_parameter not in model.parameters:
             raise ValueError(
                 f"parameter_transforms[*].target_parameter '{transform.target_parameter}' is not defined in model.parameters"
@@ -350,6 +372,28 @@ def apply_parameter_transforms(
             parameter_name=transform.target_parameter,
             value=value,
         )
+
+
+def apply_calculated_parameters(
+    model: EpiModel,
+    expr_params: dict[str, str],
+) -> None:
+    """Evaluate expression-valued parameters and add the results to the model.
+
+    Runs after scalars, age-varying values, and `parameter_transforms`, so
+    each expression sees the post-transform shapes of its sources and numpy
+    broadcasting carries time- and age-variation through naturally.
+
+    Mutates `model` in place. Raises `ValueError` (forwarded as 422) on
+    syntax errors, disallowed AST nodes, undefined name references, or
+    circular dependencies among expressions.
+    """
+    if not expr_params:
+        return
+
+    results = evaluate_expressions(expr_params, dict(model.parameters))
+    for name, value in results.items():
+        model.add_parameter(parameter_name=name, value=value)
 
 
 def extract_parameter_results(
@@ -450,9 +494,10 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
     simulation_id = f"sim_{uuid.uuid4().hex[:12]}"
 
     try:
-        # Create model (scalar params applied; age-varying params deferred until
-        # population is set so num_groups is available for shape validation).
-        model, list_params = create_model(request.model)
+        # Create model (scalar params applied; age-varying and expression
+        # params deferred — the former until population is set, the latter
+        # until after transforms so source shapes propagate through).
+        model, list_params, expr_params = create_model(request.model)
 
         # Setup population
         setup_population(model, request.population)
@@ -463,8 +508,19 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
         # Apply interventions
         apply_interventions(model, request.interventions)
 
-        # Apply parameter transforms (balcan / scale / override).
-        apply_parameter_transforms(model, request.parameter_transforms, request.simulation)
+        # Apply parameter transforms (balcan / scale / override). Calculated
+        # parameter names are passed in so a transform targeting one fails
+        # with a clear error rather than silently no-op'ing.
+        apply_parameter_transforms(
+            model,
+            request.parameter_transforms,
+            request.simulation,
+            calculated_names=set(expr_params),
+        )
+
+        # Evaluate calculated (expression) parameters now that all source
+        # values have their final shapes.
+        apply_calculated_parameters(model, expr_params)
 
         # Create initial conditions
         initial_conditions = create_initial_conditions(model, request.initial_conditions)

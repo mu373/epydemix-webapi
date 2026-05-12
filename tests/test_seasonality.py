@@ -181,7 +181,7 @@ def test_balcan_transform_writes_expected_array_into_model():
     baseline = 0.3
     val_min, val_max = 0.1, 1.0  # multiplier in [0.1, 1.0]
 
-    model, _ = create_model(ModelConfig(preset="SIR", parameters={"transmission_rate": baseline}))
+    model, _, _ = create_model(ModelConfig(preset="SIR", parameters={"transmission_rate": baseline}))
     setup_population(model, BuiltinPopulationConfig(name="United_States"))
 
     sim_cfg = SimulationConfig(start_date="2024-01-01", end_date="2024-12-31", Nsim=1)

@@ -60,17 +60,29 @@ class ModelConfig(BaseModel):
             '- Example: `["S", "E", "I", "R", "H"]`.'
         ),
     )
-    parameters: dict[str, float | list[float]] = Field(
+    parameters: dict[str, float | list[float] | str] = Field(
         default_factory=dict,
         description=(
-            "Model parameters as key-value pairs. Each key is a parameter name "
-            "referenced by transitions; the value is either a scalar rate or a "
-            "list of one value per age group (age-varying). For age-varying "
-            "values, the list length must match the resolved population's age groups.\n"
-            "For presets, these override the default values. "
-            "For custom models, all parameters used in transitions must be defined here. Examples:\n"
+            "Model parameters as key-value pairs. Each value is one of:\n"
+            "- scalar `float`: uniform constant rate.\n"
+            "- `list[float]`: age-varying (length must match resolved population age groups).\n"
+            "- `str`: arithmetic expression over other parameter names, "
+            'e.g. `"(1 - p_h) * gamma"`. Evaluated after scalars, age-varying '
+            "values, and `parameter_transforms`, in dependency order. Only "
+            "arithmetic operators are supported (`+`, `-`, `*`, `/`, `//`, "
+            "`**`, `%`, unary `+`/`-`); no function calls, attribute access, "
+            "subscripts, or comparisons. Source-parameter shapes propagate "
+            "via numpy broadcasting, so a calculated parameter inherits "
+            "time- or age-variation from its sources automatically. "
+            "Calculated parameters cannot be the target of "
+            "`parameter_transforms` (apply transforms to the source instead).\n"
+            "For presets, scalar/list values override the preset defaults. "
+            "For custom models, all parameter names used in transitions must "
+            "be defined here. Examples:\n"
             '- Scalar parameter: `{"transmission_rate": 0.3, "recovery_rate": 0.1}`.\n'
-            '- Age-varying parameter: `{"transmission_rate": [0.35, 0.30, 0.25]}`.'
+            '- Age-varying parameter: `{"transmission_rate": [0.35, 0.30, 0.25]}`.\n'
+            '- Calculated parameter: `{"p_h": 0.05, "gamma": 0.1, '
+            '"recovery_rate": "(1 - p_h) * gamma"}`.'
         ),
     )
     transitions: list[TransitionConfig] | None = Field(

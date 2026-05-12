@@ -557,7 +557,7 @@ def test_simulation_transform_no_aliasing():
         setup_population,
     )
 
-    model, _ = create_model(ModelConfig(preset="SIR", parameters={"transmission_rate": 1.0}))
+    model, _, _ = create_model(ModelConfig(preset="SIR", parameters={"transmission_rate": 1.0}))
     setup_population(model, BuiltinPopulationConfig(name="United_States"))
 
     sim_cfg = SimulationConfig(start_date="2024-01-01", end_date="2024-01-10", Nsim=1)

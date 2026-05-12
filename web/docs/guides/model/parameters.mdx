@@ -9,7 +9,7 @@ import CurlBlock from '@site/src/components/CurlBlock';
 
 <EndpointSelector />
 
-Parameters are the named rate values referenced by your model's transitions. Every parameter used in a [preset](./presets.mdx) or [custom model](./custom-models.mdx) transition must appear under `model.parameters`. Two value shapes are supported.
+Parameters are the named rate values referenced by your model's transitions. Every parameter used in a [preset](./presets.mdx) or [custom model](./custom-models.mdx) transition must appear under `model.parameters`. Three value shapes are supported: scalar, age-varying, and calculated (expressions over other parameters).
 
 ## Scalar parameters
 
@@ -72,6 +72,76 @@ For example, with the 5-group mapping below, `transmission_rate = [0.35, 0.35, 0
 </CurlBlock>
 
 You can mix scalar and age-varying values across parameters. For example, `transmission_rate` can be age-varying while `recovery_rate` stays scalar.
+
+## Calculated parameters
+
+A string value in `parameters` is treated as an arithmetic expression over the **other** parameters. The expression is evaluated at simulation build time and the result is stored under that name like any other parameter. Useful for branching outflow rates (e.g. `(1 - p_h) * gamma`) and for deriving one parameter from another (e.g. `transmission_rate` from a target $R_0$).
+
+```json
+{
+  "parameters": {
+    "p_h": 0.05,
+    "gamma": 0.1,
+    "alpha": 0.2,
+    "recovery_rate": "(1 - p_h) * gamma",
+    "hospitalization_rate": "p_h * alpha"
+  }
+}
+```
+
+Source-parameter shapes propagate via numpy broadcasting. If `p_h` is age-varying (`[0.05, 0.10, 0.15, 0.20, 0.25]`), then `(1 - p_h) * gamma` is automatically age-varying too. If `gamma` is also seasonally scaled via [`parameter_transforms`](../parameter-transforms.mdx), the calculated parameter inherits the time-variation as well — calculated parameters evaluate **after** transforms.
+
+### Allowed expression syntax
+
+Strict arithmetic only:
+
+- Binary operators: `+`, `-`, `*`, `/`, `//`, `**`, `%`
+- Unary operators: `+`, `-`
+- Parentheses for grouping
+- Numeric literals
+- Names of other parameters (or reserved names below)
+
+Function calls, attribute access, subscripts, comparisons, and conditionals are rejected with a `422` error. This keeps expressions safe to evaluate and easy to read.
+
+### Restrictions
+
+- A calculated parameter cannot be the `target_parameter` of a [`parameter_transform`](../parameter-transforms.mdx). Apply the transform to a source parameter and let it propagate through the expression instead.
+- Circular dependencies among expressions (`a = "b + 1", b = "a + 1"`) are rejected with a `422`.
+- A reference to an undefined name is rejected with a `422` naming the missing parameter.
+
+### Reserved names
+
+Expressions can also reference SCREAMING_SNAKE_CASE constants derived from the model state. User parameters cannot share these names.
+
+| Name | Value |
+|---|---|
+| `CONTACT_MATRIX_EIGENVALUE_ALL` | Dominant eigenvalue (largest by magnitude) of the sum of all contact-matrix layers in the resolved population. |
+
+The most common use is calibrating `transmission_rate` from a target $R_0$:
+
+<CurlBlock>
+{`curl -X POST BASE_URL/simulations \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": {
+      "preset": "SIR",
+      "parameters": {
+        "R0": 1.5,
+        "gamma": 0.1,
+        "recovery_rate": "gamma",
+        "transmission_rate": "R0 * gamma / CONTACT_MATRIX_EIGENVALUE_ALL"
+      }
+    },
+    "population": { "name": "United_States" },
+    "simulation": {
+      "start_date": "2024-01-01",
+      "end_date": "2024-06-01",
+      "Nsim": 10
+    }
+  }'`}
+</CurlBlock>
+
+Reserved names exist only in the expression namespace; they are not stored on the model and so do not appear under `results.parameters`.
 
 ## Time-varying parameters
 

@@ -17,7 +17,7 @@ import CurlBlock from '@site/src/components/CurlBlock';
 | `scale` | Constant multiplicative factor over a date window | pre-simulation |
 | `override` | Absolute replacement value over a date window (scalar or per age group) | during simulation |
 
-All three transforms target an existing parameter via `target_parameter`, which must already be defined in `model.parameters`.
+All three transforms target an existing parameter via `target_parameter`, which must already be defined in `model.parameters`. The target must be a **source** parameter (scalar or age-varying) — [calculated parameters](./model/parameters.mdx#calculated-parameters) cannot be transform targets. Apply the transform to a source instead and let it propagate through the expression.
 
 ## Composition order
 

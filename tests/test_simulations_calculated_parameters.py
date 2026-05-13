@@ -23,7 +23,12 @@ def _custom_sir_request(parameters: dict) -> dict:
             "compartments": ["S", "I", "R"],
             "parameters": parameters,
             "transitions": [
-                {"source": "S", "target": "I", "kind": "mediated", "params": ["transmission_rate", "I"]},
+                {
+                    "source": "S",
+                    "target": "I",
+                    "kind": "mediated",
+                    "params": ["transmission_rate", "I"],
+                },
                 {"source": "I", "target": "R", "kind": "spontaneous", "params": "recovery_rate"},
             ],
         },
@@ -338,7 +343,9 @@ def test_calculated_param_uses_reserved_eigenvalue(client):
     eigenvalue = float(np.max(np.abs(np.linalg.eigvals(summed))))
     expected_beta = 1.5 * 0.1 / eigenvalue
 
-    series = next(iter(response.json()["results"]["parameters"]["data"]["transmission_rate"].values()))
+    series = next(
+        iter(response.json()["results"]["parameters"]["data"]["transmission_rate"].values())
+    )
     assert series[0] == pytest.approx(expected_beta, rel=1e-6)
 
 
@@ -376,6 +383,75 @@ def test_calculated_param_reserved_value_not_in_results(client):
     assert "transmission_rate" in data
 
 
+def test_calculated_param_drives_simulation_equivalently_to_scalar(client):
+    """End-to-end: a calculated `a = 2 * b` (b=0.05) drives a simple decay
+    model `dX/dt = -aX` identically to a scalar `a = 0.1`.
+
+    With a fixed seed, every stochastic draw is the same, so trajectories
+    must match bit-for-bit. Compares this against the deterministic
+    closed-form expectation `E[X(t)] = X(0) * exp(-a*t)` as a sanity check
+    that the rate is actually being applied (not just stored).
+    """
+
+    def make_request(params: dict) -> dict:
+        return {
+            "model": {
+                "compartments": ["X", "Y"],
+                "parameters": params,
+                "transitions": [
+                    {"source": "X", "target": "Y", "kind": "spontaneous", "params": ["a"]},
+                ],
+            },
+            "population": {
+                "source": "custom",
+                "name": "DecayTest",
+                "age_groups": {"all": 100000},
+                "contact_matrices": {"all": [[1.0]]},
+            },
+            "initial_conditions": {
+                "method": "absolute",
+                "compartments": {"X": [100000], "Y": [0]},
+            },
+            "simulation": {
+                "start_date": "2024-01-01",
+                "end_date": "2024-04-01",
+                "Nsim": 30,
+                "seed": 42,
+                "dt": 1.0,
+            },
+            "output": {
+                "include_trajectories": True,
+                "age_groups": ["total"],
+            },
+        }
+
+    # Precalculated
+    scalar = client.post("/api/v1/simulations", json=make_request({"a": 0.1})).json()
+    # Calculated from expression
+    calc = client.post("/api/v1/simulations", json=make_request({"b": 0.05, "a": "2 * b"})).json()
+    assert scalar["status"] == "completed", scalar
+    assert calc["status"] == "completed", calc
+
+    # Each pair of n-th run from each simulation should have bit-identical trajectories: same seed, same effective rate.
+    s_runs = scalar["results"]["trajectories"]["runs"]
+    c_runs = calc["results"]["trajectories"]["runs"]
+    assert len(s_runs) == len(c_runs) == 30
+    for s_run, c_run in zip(s_runs, c_runs):
+        for comp in ("X", "Y"):
+            assert s_run["compartments"][comp]["total"] == c_run["compartments"][comp]["total"]
+
+    # Closed-form sanity: ensemble mean of X at the final step should be
+    # close to X(0) * exp(-a*t). t = (end - start) in days, here 91 days.
+    import numpy as np
+
+    a = 0.1
+    t_days = (np.datetime64("2024-04-01") - np.datetime64("2024-01-01")).astype(int)
+    expected = 100000.0 * np.exp(-a * t_days)
+    finals = [run["compartments"]["X"]["total"][-1] for run in s_runs]
+    observed = float(np.mean(finals))
+    assert observed == pytest.approx(expected, rel=0.30), (observed, expected)
+
+
 def test_seir_vax_end_to_end(client):
     """Small SEIR + vaccinated branch model with one calculated rate.
 
@@ -395,13 +471,33 @@ def test_seir_vax_end_to_end(client):
                 "transmission_rate_v": "(1 - VE_S) * transmission_rate",
             },
             "transitions": [
-                {"source": "S",  "target": "Sv", "kind": "spontaneous", "params": ["nu"]},
-                {"source": "S",  "target": "E",  "kind": "mediated",    "params": ["transmission_rate", "I"]},
-                {"source": "S",  "target": "E",  "kind": "mediated",    "params": ["transmission_rate", "Iv"]},
-                {"source": "Sv", "target": "Ev", "kind": "mediated",    "params": ["transmission_rate_v", "I"]},
-                {"source": "Sv", "target": "Ev", "kind": "mediated",    "params": ["transmission_rate_v", "Iv"]},
-                {"source": "E",  "target": "I",  "kind": "spontaneous", "params": ["sigma"]},
-                {"source": "I",  "target": "R",  "kind": "spontaneous", "params": ["gamma"]},
+                {"source": "S", "target": "Sv", "kind": "spontaneous", "params": ["nu"]},
+                {
+                    "source": "S",
+                    "target": "E",
+                    "kind": "mediated",
+                    "params": ["transmission_rate", "I"],
+                },
+                {
+                    "source": "S",
+                    "target": "E",
+                    "kind": "mediated",
+                    "params": ["transmission_rate", "Iv"],
+                },
+                {
+                    "source": "Sv",
+                    "target": "Ev",
+                    "kind": "mediated",
+                    "params": ["transmission_rate_v", "I"],
+                },
+                {
+                    "source": "Sv",
+                    "target": "Ev",
+                    "kind": "mediated",
+                    "params": ["transmission_rate_v", "Iv"],
+                },
+                {"source": "E", "target": "I", "kind": "spontaneous", "params": ["sigma"]},
+                {"source": "I", "target": "R", "kind": "spontaneous", "params": ["gamma"]},
                 {"source": "Ev", "target": "Iv", "kind": "spontaneous", "params": ["sigma"]},
                 {"source": "Iv", "target": "Rv", "kind": "spontaneous", "params": ["gamma"]},
             ],

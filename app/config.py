@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="EPYDEMIX_")
 
     app_name: str = "epydemix WebAPI"
-    app_version: str = "0.5.1"
+    app_version: str = "0.6.0"
     debug: bool = False
 
     # API settings

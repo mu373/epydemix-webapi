@@ -56,3 +56,16 @@ R_0 = \frac{\beta}{\mu}\, \rho(C),
 $$
 
 where $\rho(C)$ is the **spectral radius (largest eigenvalue) of the overall contact matrix** (the sum of the layer matrices). The spectral radius is returned as `spectral_radius.overall` by [`GET /populations/{name}/contacts`](./presets.mdx#get-contact-matrices), so you can plug it straight in to pick a `transmission_rate` that targets a desired $R_0$.
+
+To do this calculation directly inside the request, use the reserved name `CONTACT_MATRIX_EIGENVALUE_ALL` (= $\rho(C)$) from a [calculated parameter](../model/parameters.mdx#calculated-parameters):
+
+```json
+{
+  "parameters": {
+    "R0": 1.5,
+    "gamma": 0.1,
+    "recovery_rate": "gamma",
+    "transmission_rate": "R0 * gamma / CONTACT_MATRIX_EIGENVALUE_ALL"
+  }
+}
+```

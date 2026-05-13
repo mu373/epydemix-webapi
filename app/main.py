@@ -130,8 +130,7 @@ def _link_header() -> str:
     if settings.mcp_enabled:
         links.append('</mcp>; rel="mcp-server"')
         links.append(
-            '</.well-known/mcp/server-card.json>; '
-            'rel="mcp-server-card"; type="application/json"'
+            '</.well-known/mcp/server-card.json>; rel="mcp-server-card"; type="application/json"'
         )
     return ", ".join(links)
 
@@ -182,21 +181,15 @@ async def api_catalog() -> Response:
     """
     entry: dict = {
         "anchor": _API_BASE,
-        "service-desc": [
-            {"href": f"{_API_BASE}/openapi.json", "type": "application/json"}
-        ],
+        "service-desc": [{"href": f"{_API_BASE}/openapi.json", "type": "application/json"}],
         "service-doc": [
             {"href": f"{_API_BASE}/docs", "type": "text/html"},
             {"href": f"{_DOCS_BASE}/api-reference", "type": "text/html"},
         ],
-        "status": [
-            {"href": f"{_API_BASE}/health", "type": "application/json"}
-        ],
+        "status": [{"href": f"{_API_BASE}/health", "type": "application/json"}],
         # llms.txt and llms-full.txt: long-form agent-friendly markdown
         # (https://llmstxt.org). Hosted on the docs origin.
-        "https://llmstxt.org/": [
-            {"href": f"{_DOCS_BASE}/llms.txt", "type": "text/markdown"}
-        ],
+        "https://llmstxt.org/": [{"href": f"{_DOCS_BASE}/llms.txt", "type": "text/markdown"}],
         "https://llmstxt.org/full": [
             {"href": f"{_DOCS_BASE}/llms-full.txt", "type": "text/markdown"}
         ],

@@ -111,8 +111,7 @@ def main() -> None:
         f"({OUTPUT.stat().st_size:,} bytes from {bundle_count} files)"
     )
     print(
-        f"wrote per-page mirrors under {PER_PAGE_DIR.relative_to(Path.cwd())}/ "
-        f"({len(files)} files)"
+        f"wrote per-page mirrors under {PER_PAGE_DIR.relative_to(Path.cwd())}/ ({len(files)} files)"
     )
 
 

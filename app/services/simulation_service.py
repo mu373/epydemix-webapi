@@ -125,7 +125,9 @@ def create_model(
     """
     raw = config.parameters or {}
     scalar_params: dict[str, float] = {
-        k: float(v) for k, v in raw.items() if isinstance(v, (int, float)) and not isinstance(v, bool)
+        k: float(v)
+        for k, v in raw.items()
+        if isinstance(v, (int, float)) and not isinstance(v, bool)
     }
     list_params: dict[str, list[float]] = {k: v for k, v in raw.items() if isinstance(v, list)}
     expr_params: dict[str, str] = {k: v for k, v in raw.items() if isinstance(v, str)}

@@ -56,8 +56,7 @@ def _parse(expr: str, param_name: str) -> ast.Expression:
         return ast.parse(expr, mode="eval")
     except SyntaxError as e:
         raise ValueError(
-            f"Calculated parameter '{param_name}' has invalid expression "
-            f"{expr!r}: {e.msg}"
+            f"Calculated parameter '{param_name}' has invalid expression {expr!r}: {e.msg}"
         ) from e
 
 
@@ -116,8 +115,7 @@ def _topological_order(
         if not ready:
             cycle = sorted(remaining)
             raise ValueError(
-                f"Calculated parameters have a circular dependency among: "
-                f"{', '.join(cycle)}."
+                f"Calculated parameters have a circular dependency among: {', '.join(cycle)}."
             )
         for name in ready:
             order.append(name)
@@ -177,9 +175,7 @@ def evaluate_expressions(
         try:
             value = eval(code, {"__builtins__": {}}, namespace)  # noqa: S307
         except Exception as e:
-            raise ValueError(
-                f"Calculated parameter '{name}' failed to evaluate: {e}"
-            ) from e
+            raise ValueError(f"Calculated parameter '{name}' failed to evaluate: {e}") from e
 
         if isinstance(value, np.ndarray):
             # Strip the broadcast helper-axis: `(T, 1)` → `(T,)`, `(1, 1)` → scalar.

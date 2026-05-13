@@ -1,6 +1,5 @@
 """Custom-population path through the simulation endpoint and schema validators."""
 
-
 CUSTOM_POPULATION_REQUEST = {
     "model": {
         "preset": "SIR",

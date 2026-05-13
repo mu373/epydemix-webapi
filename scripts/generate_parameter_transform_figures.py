@@ -47,15 +47,23 @@ WINDOW_START = dt.date(2024, 3, 1)
 WINDOW_STOP = dt.date(2024, 4, 1)
 
 
-def _format_axes(ax, title: str, ylabel: str, baseline: float | None = None, ymax: float | None = None) -> None:
+def _format_axes(
+    ax, title: str, ylabel: str, baseline: float | None = None, ymax: float | None = None
+) -> None:
     ax.set_title(title, fontsize=11)
     ax.set_ylabel(ylabel)
     ax.xaxis.set_major_locator(mdates.MonthLocator(bymonth=[1, 4, 7, 10]))
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
     ax.grid(True, linewidth=0.3, alpha=0.5)
     if baseline is not None:
-        ax.axhline(baseline, color="gray", linewidth=0.8, linestyle="--", alpha=0.7,
-                   label=f"Baseline = {baseline}")
+        ax.axhline(
+            baseline,
+            color="gray",
+            linewidth=0.8,
+            linestyle="--",
+            alpha=0.7,
+            label=f"Baseline = {baseline}",
+        )
     if ymax is not None:
         ax.set_ylim(0, ymax)
 
@@ -87,17 +95,41 @@ def make_seasonality_figure() -> None:
     effective = baseline * np.array(multiplier)
 
     fig, ax = plt.subplots(figsize=(7, 3.5), constrained_layout=True)
-    ax.plot(dates, effective, color="tab:purple", linewidth=2.0, label="Effective transmission_rate")
+    ax.plot(
+        dates, effective, color="tab:purple", linewidth=2.0, label="Effective transmission_rate"
+    )
     ax.axvline(date_tmax, color="black", linewidth=0.7, linestyle="--", alpha=0.45)
     ax.axvline(date_tmin, color="black", linewidth=0.7, linestyle=":", alpha=0.45)
-    _format_axes(ax, "Seasonality: baseline 0.3, max=1, min=0.1", "transmission_rate", baseline=baseline, ymax=baseline * val_max * 1.15)
+    _format_axes(
+        ax,
+        "Seasonality: baseline 0.3, max=1, min=0.1",
+        "transmission_rate",
+        baseline=baseline,
+        ymax=baseline * val_max * 1.15,
+    )
     # Place date labels at the top of each vertical line, inside the plot area.
     y_top = ax.get_ylim()[1]
     label_y = y_top - 0.02 * (y_top - ax.get_ylim()[0])
-    ax.text(date_tmax, label_y, "Jan 15 (max)", va="top", ha="center", fontsize=8, alpha=0.75,
-            bbox=dict(facecolor="white", edgecolor="none", pad=1.5))
-    ax.text(date_tmin, label_y, "Jul 15 (min)", va="top", ha="center", fontsize=8, alpha=0.75,
-            bbox=dict(facecolor="white", edgecolor="none", pad=1.5))
+    ax.text(
+        date_tmax,
+        label_y,
+        "Jan 15 (max)",
+        va="top",
+        ha="center",
+        fontsize=8,
+        alpha=0.75,
+        bbox=dict(facecolor="white", edgecolor="none", pad=1.5),
+    )
+    ax.text(
+        date_tmin,
+        label_y,
+        "Jul 15 (min)",
+        va="top",
+        ha="center",
+        fontsize=8,
+        alpha=0.75,
+        bbox=dict(facecolor="white", edgecolor="none", pad=1.5),
+    )
     ax.legend(loc="upper right", fontsize=9)
     _save(fig, "seasonality.svg")
 
@@ -120,7 +152,13 @@ def make_scale_figure() -> None:
     fig, ax = plt.subplots(figsize=(7, 3.5), constrained_layout=True)
     ax.plot(dates, effective, color="tab:green", linewidth=2.0, label="Effective transmission_rate")
     ax.axvspan(WINDOW_START, WINDOW_STOP, color="tab:green", alpha=0.08, label="Scaling window")
-    _format_axes(ax, "Scale: baseline 0.1, factor=0.5 in [Mar 1, Apr 1]", "transmission_rate", baseline=baseline, ymax=baseline * 1.4)
+    _format_axes(
+        ax,
+        "Scale: baseline 0.1, factor=0.5 in [Mar 1, Apr 1]",
+        "transmission_rate",
+        baseline=baseline,
+        ymax=baseline * 1.4,
+    )
     ax.legend(loc="upper right", fontsize=9)
     _save(fig, "scale.svg")
 
@@ -145,7 +183,13 @@ def make_override_figure() -> None:
     fig, ax = plt.subplots(figsize=(7, 3.5), constrained_layout=True)
     ax.plot(dates, effective, color="tab:red", linewidth=2.0, label="Effective transmission_rate")
     ax.axvspan(WINDOW_START, WINDOW_STOP, color="tab:red", alpha=0.08, label="Override window")
-    _format_axes(ax, "Override: baseline 0.3, value=0.1 in [Mar 1, Apr 1]", "transmission_rate", baseline=baseline, ymax=baseline * 1.4)
+    _format_axes(
+        ax,
+        "Override: baseline 0.3, value=0.1 in [Mar 1, Apr 1]",
+        "transmission_rate",
+        baseline=baseline,
+        ymax=baseline * 1.4,
+    )
     ax.legend(loc="upper right", fontsize=9)
     _save(fig, "override.svg")
 

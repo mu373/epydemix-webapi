@@ -349,6 +349,120 @@ def test_calculated_param_uses_reserved_eigenvalue(client):
     assert series[0] == pytest.approx(expected_beta, rel=1e-6)
 
 
+def test_calculated_param_eigenvalue_match_hand_computable_matrix(client):
+    """`CONTACT_MATRIX_EIGENVALUE_ALL` matches a hand-computable dominant
+    eigenvalue, on a custom inline population.
+
+    Matrix [[2, 1], [1, 2]] has eigenvalues 3 and 1; dominant is 3.
+    Setting R0 = 3 and gamma = 0.1 should yield transmission_rate = 0.1
+    (= R0 * gamma / eigenvalue = 3 * 0.1 / 3).
+    """
+    request = {
+        "model": {
+            "compartments": ["S", "I", "R"],
+            "parameters": {
+                "R0": 3.0,
+                "gamma": 0.1,
+                "recovery_rate": "gamma",
+                "eigenval": "CONTACT_MATRIX_EIGENVALUE_ALL",  # dummy parameter to test reserved name in expression
+                "transmission_rate": "R0 * gamma / CONTACT_MATRIX_EIGENVALUE_ALL",
+            },
+            "transitions": [
+                {
+                    "source": "S",
+                    "target": "I",
+                    "kind": "mediated",
+                    "params": ["transmission_rate", "I"],
+                },
+                {"source": "I", "target": "R", "kind": "spontaneous", "params": "recovery_rate"},
+            ],
+        },
+        "population": {
+            "source": "custom",
+            "name": "EigenvalueTest",
+            "age_groups": {"young": 50000, "old": 50000},
+            "contact_matrices": {"all": [[2.0, 1.0], [1.0, 2.0]]},  # largest eigenvalue is 3.0
+        },
+        "simulation": {
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-05",
+            "Nsim": 2,
+            "seed": 1,
+        },
+        "output": {"include_parameters": True},
+    }
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200, response.text
+
+    series = next(
+        iter(response.json()["results"]["parameters"]["data"]["transmission_rate"].values())
+    )
+    assert series[0] == pytest.approx(0.1, abs=1e-9)
+
+    assert "eigenval" in response.json()["results"]["parameters"]["data"]
+    eigen_series = next(iter(response.json()["results"]["parameters"]["data"]["eigenval"].values()))
+    assert eigen_series[0] == 3.0
+
+
+def test_calculated_param_eigenvalue_sums_across_layers(client):
+    """`CONTACT_MATRIX_EIGENVALUE_ALL` sums layers before taking the eigenvalue,
+    not the eigenvalue of any single layer.
+
+    Two identity layers `[[1,0],[0,1]]` sum to `[[2,0],[0,2]]`, dominant
+    eigenvalue 2 (would be 1 if only one layer were used). Setting
+    R0 = 2 and gamma = 0.1 yields transmission_rate = 0.1.
+    """
+    request = {
+        "model": {
+            "compartments": ["S", "I", "R"],
+            "parameters": {
+                "R0": 2.0,
+                "gamma": 0.1,
+                "recovery_rate": "gamma",
+                "eigenval": "CONTACT_MATRIX_EIGENVALUE_ALL",  # dummy parameter to test reserved name in expression
+                "transmission_rate": "R0 * gamma / CONTACT_MATRIX_EIGENVALUE_ALL",
+            },
+            "transitions": [
+                {
+                    "source": "S",
+                    "target": "I",
+                    "kind": "mediated",
+                    "params": ["transmission_rate", "I"],
+                },
+                {"source": "I", "target": "R", "kind": "spontaneous", "params": "recovery_rate"},
+            ],
+        },
+        "population": {
+            "source": "custom",
+            "name": "MultiLayerTest",
+            "age_groups": {"a": 50000, "b": 50000},
+            "contact_matrices": {
+                "home": [[1.0, 0.0], [0.0, 1.0]],
+                "work": [[1.0, 0.0], [0.0, 1.0]],
+            },  # the summed matrix has eigen value 2.0
+        },
+        "simulation": {
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-05",
+            "Nsim": 2,
+            "seed": 1,
+        },
+        "output": {"include_parameters": True},
+    }
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200, response.text
+
+    series = next(
+        iter(response.json()["results"]["parameters"]["data"]["transmission_rate"].values())
+    )
+    # The summed eigenvalue is 2, so transmission_rate = 0.1 (= 2.0 * 0.1 / 2.0).
+    assert series[0] == pytest.approx(0.1, abs=1e-9)
+
+    assert "eigenval" in response.json()["results"]["parameters"]["data"]
+    eigen_series = next(iter(response.json()["results"]["parameters"]["data"]["eigenval"].values()))
+    assert eigen_series[0] == 2.0
+
+
 def test_calculated_param_reserved_name_collision_rejected(client):
     """A user parameter named like a reserved constant → 422."""
     request = _custom_sir_request(

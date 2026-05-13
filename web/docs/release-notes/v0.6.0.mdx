@@ -15,7 +15,7 @@ import ReleaseHeader from '@site/src/components/ReleaseHeader';
 
 ## Overview
 - Add **calculated parameters** to `model.parameters`: a string value is treated as an arithmetic expression over other parameters and evaluated at simulation build time
-- Add the reserved name **`CONTACT_MATRIX_EIGENVALUE_ALL`** for $R_0 \to \beta$ calibration directly inside a request
+- Expose the largest eigenvalue of the contact matrix as a reserved parameter **`CONTACT_MATRIX_EIGENVALUE_ALL`** usable in calculated-parameter expressions
 - Regenerate population metadata to match the current upstream subnational naming (single-underscore → double-underscore)
 
 ## Simulations
@@ -38,9 +38,9 @@ Values in `model.parameters` can now be expressions over the other parameters. U
 }
 ```
 
-Source-parameter shapes propagate via numpy broadcasting, so an age-varying or seasonally-scaled source flows through the expression automatically — calculated parameters evaluate **after** `parameter_transforms`.
+Source-parameter shapes propagate via numpy broadcasting, so an age-varying or seasonally-scaled source flows through the expression automatically. Calculated parameters evaluate **after** `parameter_transforms`.
 
-Strict arithmetic syntax only: `+`, `-`, `*`, `/`, `//`, `**`, `%`, unary `+`/`-`, parentheses, numeric literals, and parameter names. No function calls, attribute access, subscripts, comparisons, or conditionals. Circular references and undefined names raise `422` with the offending name.
+Expressions can only include strict arithmetic syntax: `+`, `-`, `*`, `/`, `//`, `**`, `%`, unary `+`/`-`, parentheses, numeric literals, and parameter names. No function calls, attribute access, subscripts, comparisons, or conditionals. Circular references and undefined names raise `422` with the offending name.
 
 A calculated parameter cannot be the `target_parameter` of a `parameter_transform`. Apply the transform to a source parameter instead and let it propagate through the expression.
 
@@ -48,7 +48,7 @@ See the [Parameters guide](/docs/guides/model/parameters#calculated-parameters) 
 
 ### Reserved name: `CONTACT_MATRIX_EIGENVALUE_ALL`
 
-A SCREAMING_SNAKE_CASE constant injected into the expression namespace, equal to the dominant eigenvalue (largest by magnitude) of the sum of all contact-matrix layers in the resolved population. The most common use is calibrating `transmission_rate` from a target $R_0$:
+The largest eigenvalue of the summed contact matrix (across all layers) is available as `CONTACT_MATRIX_EIGENVALUE_ALL`. The most common use is calibrating `transmission_rate` from a target $R_0$:
 
 ```json
 {
@@ -67,12 +67,17 @@ User parameter names cannot collide with reserved names. Reserved values are inj
 
 `GET /api/v1/populations`
 
-### Subnational naming
+### Population name identifier update
 
-The precomputed population metadata CSVs (`app/data/population_metadata.csv` and `app/data/population_age_distribution.csv`) have been regenerated against the current `epydemix-data` release. Subnational identifiers now use the upstream double-underscore convention (`Australia__New_South_Wales` rather than `Australia_New_South_Wales`), so `total_population` and the per-age-group breakdown are now populated for ~3,600 subnational entries that previously returned `null`.
+A recent [`epydemix-data` v1.2.0](https://github.com/epistorm/epydemix-data/releases/tag/v1.2.0) update switched subnational identifiers from a single-underscore to a double-underscore separator (e.g. `United_States__Massachusetts` rather than `United_States_Massachusetts`). The precomputed population metadata CSVs (`app/data/population_metadata.csv` and `app/data/population_age_distribution.csv`) have been regenerated against the current release to match.
+
+### United States county-level populations
+
+The same `epydemix-data` v1.2.0 update introduces ~3,100 US county-level populations (e.g. `United_States__Massachusetts__Suffolk_County`). Demographic distributions come from the US Census Bureau (2023); contact matrices are inherited from the corresponding state in the absence of county-specific survey data. See the [Population Presets page](/docs/guides/populations/presets#united-states-county-level) for examples.
 
 ## Documentation
 
 - New **Calculated parameters** section in the Parameters guide: expression syntax, broadcasting/composition with transforms, reserved names, and an R0-calibration example
 - Note in the **Parameter Transforms** guide that `target_parameter` must be a source parameter (scalar or age-varying), not a calculated one
 - The **Populations Overview** R0-calibration section now points at `CONTACT_MATRIX_EIGENVALUE_ALL` as the in-request shortcut
+- The **Population Presets** page reflects the new double-underscore convention across all subnational identifiers, and adds a section on US county-level populations (~3,100 counties) with examples

@@ -46,18 +46,18 @@ Example response (truncated):
 
 ### Subnational populations
 
-Beyond country-level entries, the API also exposes **subnational regions** (states, provinces, prefectures) using the naming convention `Country_Region`. They behave exactly like country populations: pass the full identifier as `name` to any populations endpoint or as `population.name` in a simulation.
+Beyond country-level entries, the API also exposes **subnational regions** (states, provinces, prefectures) using the naming convention `Country__Region` (double underscore between country and region). They behave exactly like country populations: pass the full identifier as `name` to any populations endpoint or as `population.name` in a simulation.
 
 | Country | Subdivisions | Example identifier |
 |---|---|---|
-| United States | 51 (states + DC) | `United_States_Massachusetts`, `United_States_California`, `United_States_Texas` |
-| Russia | 83 | `Russia_Moscow`, `Russia_St._Petersburg` |
-| Japan | 47 prefectures | `Japan_Tokyo-to`, `Japan_Osaka-fu`, `Japan_Aichi-ken` |
-| India | 32 | `India_Maharashtra`, `India_Karnataka` |
-| China | 31 | `China_Beijing`, `China_Guangdong` |
-| Canada | 13 provinces/territories | `Canada_Ontario`, `Canada_Quebec` |
-| South Africa | 9 | `South_Africa_Gauteng`, `South_Africa_Western_Cape` |
-| Australia | 8 states/territories | `Australia_Victoria`, `Australia_New_South_Wales` |
+| United States | 50 states + DC (plus ~3,100 counties; see below) | `United_States__Massachusetts`, `United_States__California`, `United_States__Texas` |
+| Russia | 83 | `Russia__Moscow`, `Russia__St._Petersburg` |
+| Japan | 47 prefectures | `Japan__Tokyo-to`, `Japan__Osaka-fu`, `Japan__Aichi-ken` |
+| India | 32 | `India__Maharashtra`, `India__Karnataka` |
+| China | 31 | `China__Beijing`, `China__Guangdong` |
+| Canada | 13 provinces/territories | `Canada__Ontario`, `Canada__Quebec` |
+| South Africa | 9 | `South_Africa__Gauteng`, `South_Africa__Western_Cape` |
+| Australia | 8 states/territories | `Australia__Victoria`, `Australia__New_South_Wales` |
 
 Use [`GET /api/v1/populations`](/api-reference#tag/populations/GET/api/v1/populations) to enumerate every available identifier.
 
@@ -68,7 +68,7 @@ Example: simulate an outbreak in Massachusetts.
   -H "Content-Type: application/json" \\
   -d '{
     "model": {"preset": "SIR", "parameters": {"transmission_rate": 0.3, "recovery_rate": 0.1}},
-    "population": {"name": "United_States_Massachusetts"},
+    "population": {"name": "United_States__Massachusetts"},
     "simulation": {"start_date": "2024-01-01", "end_date": "2024-06-01", "Nsim": 50}
   }'`}
 </CurlBlock>
@@ -76,6 +76,26 @@ Example: simulate an outbreak in Massachusetts.
 :::note
 All subnational entries currently ship only the `mistry_2021` contact source, so the `prem_2017` / `prem_2021` overrides available on most country populations don't apply here.
 :::
+
+### United States county-level
+
+The US is further divided into ~3,100 **counties**. Demographic distributions are sourced from the US Census Bureau (2023); contact matrices are inherited from the corresponding state (in the absence of county-specific survey data). Identifiers follow the same convention with one more level: `United_States__<State>__<County>`.
+
+| Example | Description |
+|---|---|
+| `United_States__Massachusetts__Suffolk_County` | Boston and surrounding cities |
+| `United_States__New_York__Kings_County` | Brooklyn |
+| `United_States__California__Los_Angeles_County` | Los Angeles |
+
+<CurlBlock>
+{`curl -X POST BASE_URL/simulations \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": {"preset": "SIR", "parameters": {"transmission_rate": 0.3, "recovery_rate": 0.1}},
+    "population": {"name": "United_States__Massachusetts__Suffolk_County"},
+    "simulation": {"start_date": "2024-01-01", "end_date": "2024-06-01", "Nsim": 50}
+  }'`}
+</CurlBlock>
 
 ## Inspect a population
 

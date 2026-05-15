@@ -114,44 +114,53 @@ def test_calculated_param_with_age_varying_source(client):
 
 def test_calculated_param_composes_with_balcan(client):
     """A balcan transform on a scalar source produces a time-varying
-    calculated parameter via numpy broadcasting."""
+    calculated parameter via numpy broadcasting.
+
+    Seasonality goes on R0 (the natural knob), and
+    `transmission_rate = R0 * recovery_rate` is the calc-param that picks it up. 
+    """
     request = _custom_sir_request(
         {
-            "p_h": 0.1,
-            "gamma": 0.2,
-            "transmission_rate": 0.3,
-            "recovery_rate": "(1 - p_h) * gamma",
+            "R0": 2.5,
+            "recovery_rate": 0.1,
+            "transmission_rate": "R0 * recovery_rate",
         }
     )
     request["parameter_transforms"] = [
         {
-            "target_parameter": "gamma",
+            "target_parameter": "R0",
             "method": "balcan",
             "max_date": "2024-01-15",
             "min_date": "2024-07-15",
-            "max_value": 0.30,
-            "min_value": 0.10,
+            "max_value": 1.0,
+            "min_value": 0.5,
         }
     ]
 
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 200, response.text
 
-    rec = response.json()["results"]["parameters"]["data"]["recovery_rate"]
-    series = next(iter(rec.values()))
-    # The series should not be flat — balcan made `gamma` time-varying, and
-    # `(1 - 0.1) * gamma` therefore varies over time too.
+    beta = response.json()["results"]["parameters"]["data"]["transmission_rate"]
+    series = next(iter(beta.values()))
+    # The series should not be flat: balcan made R0 time-varying, and
+    # `R0 * recovery_rate` therefore varies over time too.
     assert max(series) - min(series) > 1e-3
 
 
 def test_calculated_param_composes_with_age_varying_plus_balcan(client):
-    """Source is age-varying AND time-transformed; calculated output is (T, N)."""
+    """Source is age-varying AND time-transformed; calculated output is (T, N).
+
+    `transmission_rate = R0 * recovery_rate * age_susceptibility` carries an
+    age-varying factor (`age_susceptibility`) AND a seasonal one (balcan on
+    `R0`). The resulting transmission_rate should differ across age groups
+    and vary over time within each group.
+    """
     request = _custom_sir_request(
         {
-            "p_h": [0.05, 0.10, 0.15, 0.20, 0.25],
-            "gamma": 0.2,
-            "transmission_rate": 0.3,
-            "recovery_rate": "(1 - p_h) * gamma",
+            "R0": 2.5,
+            "recovery_rate": 0.1,
+            "age_susceptibility": [0.6, 0.8, 1.0, 1.2, 1.4],
+            "transmission_rate": "R0 * recovery_rate * age_susceptibility",
         }
     )
     request["population"] = {
@@ -161,25 +170,26 @@ def test_calculated_param_composes_with_age_varying_plus_balcan(client):
     }
     request["parameter_transforms"] = [
         {
-            "target_parameter": "gamma",
+            "target_parameter": "R0",
             "method": "balcan",
             "max_date": "2024-01-15",
             "min_date": "2024-07-15",
-            "max_value": 0.30,
-            "min_value": 0.10,
+            "max_value": 1.0,
+            "min_value": 0.5,
         }
     ]
 
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 200, response.text
 
-    rec = response.json()["results"]["parameters"]["data"]["recovery_rate"]
-    age_keys = [k for k in rec if k != "total"]
-    # Different age groups have different (1-p_h) factors → different series.
-    assert rec[age_keys[0]][0] != pytest.approx(rec[age_keys[-1]][0], abs=1e-6)
+    beta = response.json()["results"]["parameters"]["data"]["transmission_rate"]
+    age_keys = [k for k in beta if k != "total"]
+    # Different age groups have different age_susceptibility factors, so the
+    # age groups carry distinct transmission_rate series.
+    assert beta[age_keys[0]][0] != pytest.approx(beta[age_keys[-1]][0], abs=1e-6)
     # Each series is time-varying.
     for ag in age_keys:
-        s = rec[ag]
+        s = beta[ag]
         assert max(s) - min(s) > 1e-3
 
 

@@ -334,6 +334,109 @@ class OutputConfig(BaseModel):
     )
 
 
+class FlatCountRollout(BaseModel):
+    """Constant daily dose count across the campaign window.
+
+    Doses are split across `target_age_groups` (on the parent campaign)
+    proportional to the current source-compartment population in each group
+    at every simulation step. The multinomial draw inside the simulator
+    naturally caps each group's transitions at the available source pool.
+    """
+
+    type: Literal["flat_count"] = Field(
+        default="flat_count",
+        description="Discriminator. The only rollout strategy supported in v1.",
+    )
+    daily_doses: float = Field(
+        ...,
+        gt=0,
+        description=(
+            "Doses delivered per day. Naturally capped per group by the "
+            "available source-compartment population at each step."
+        ),
+    )
+
+
+RolloutConfig: TypeAlias = Annotated[
+    FlatCountRollout,
+    Field(discriminator="type"),
+]
+
+
+class VaccinationCampaignConfig(BaseModel):
+    """One vaccination campaign: a time window, an age target, and a rollout strategy."""
+
+    name: str | None = Field(
+        default=None,
+        description="Optional label echoed back in metadata.",
+    )
+    start_date: str = Field(..., description="Campaign start (`YYYY-MM-DD`), inclusive.")
+    end_date: str = Field(
+        ...,
+        description="Campaign end (`YYYY-MM-DD`), inclusive. Must be `>= start_date`.",
+    )
+    target_age_groups: list[str] | None = Field(
+        default=None,
+        description=(
+            "Age group labels to target, e.g. `[\"20-49\", \"65+\"]`. `null` = all groups."
+        ),
+    )
+    rollout: RolloutConfig = Field(
+        ...,
+        description=(
+            "Dose-schedule strategy. The `type` discriminator selects the shape; "
+            "remaining fields are strategy-specific. v1 supports `flat_count`."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _validate_window(self) -> "VaccinationCampaignConfig":
+        if self.end_date < self.start_date:
+            raise ValueError("'end_date' must be >= 'start_date'")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_target_age_groups(self) -> "VaccinationCampaignConfig":
+        if self.target_age_groups is not None:
+            if len(set(self.target_age_groups)) != len(self.target_age_groups):
+                raise ValueError(
+                    "each entry in 'target_age_groups' must be unique"
+                )
+        return self
+
+
+class VaccinationConfig(BaseModel):
+    """Vaccination rollout block.
+
+    For the `V-SEIHR` preset, `source_compartment` / `target_compartment`
+    default to `Susceptible` / `Susceptible_vax`. For custom models both are
+    required and must reference existing compartments.
+    """
+
+    source_compartment: str | None = Field(
+        default=None,
+        description=(
+            "Compartment to draw vaccinees from. Required for custom models; "
+            "defaults to `Susceptible` for the `V-SEIHR` preset."
+        ),
+    )
+    target_compartment: str | None = Field(
+        default=None,
+        description=(
+            "Compartment vaccinated individuals move to. Required for custom models; "
+            "defaults to `Susceptible_vax` for the `V-SEIHR` preset."
+        ),
+    )
+    campaigns: list[VaccinationCampaignConfig] = Field(
+        default_factory=list,
+        description=(
+            "Campaign windows. Each carries its own rollout strategy; multiple "
+            "campaigns may overlap and mix strategies. Their per-step dose "
+            "schedules add."
+        ),
+    )
+
+
 class SimulationRequest(BaseModel):
     """Complete simulation request."""
 
@@ -359,6 +462,17 @@ class SimulationRequest(BaseModel):
             "Multiple transforms on the same parameter compose: `balcan` and `scale` "
             "stack multiplicatively in the order listed; `override` always wins for its "
             "date window, regardless of position in the list."
+        ),
+    )
+    vaccination: VaccinationConfig | None = Field(
+        default=None,
+        description=(
+            "Vaccination rollout. Defines the source → target flow and any "
+            "number of dose-count campaigns. The vaccinated compartment "
+            "structure and vaccine efficacy (`VE_S`, `VE_H`) are defined in "
+            "the model (either via the `V-SEIHR` preset, or by supplying a "
+            "custom model with vaccinated twin compartments and calculated "
+            "parameters)."
         ),
     )
     output: OutputConfig | None = Field(

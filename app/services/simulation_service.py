@@ -42,6 +42,7 @@ from ..utils.parameter_transforms import (
 )
 from .population_service import _resolve_contacts_source
 from .results_processing import process_results
+from .vaccination_service import apply_vaccinations
 
 DEFAULT_LAYERS = ["home", "work", "school", "community"]
 
@@ -581,6 +582,15 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
             calculated_names=calc_names,
         )
 
+        # Vaccination flow (source to vaccinated target). Mutates model in place;
+        # no-op when the request has no `vaccination` block.
+        apply_vaccinations(
+            model,
+            request.vaccination,
+            request.simulation,
+            request.model.preset,
+        )
+
         # Create initial conditions
         initial_conditions = create_initial_conditions(model, request.initial_conditions)
 
@@ -617,6 +627,7 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
             simulation=_build_run_metadata(request),
             interventions=request.interventions,
             parameter_transforms=request.parameter_transforms,
+            vaccination=request.vaccination,
         )
 
         return SimulationResponse(

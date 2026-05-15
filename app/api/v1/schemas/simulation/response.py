@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from .request import InterventionConfig
+from .request import InterventionConfig, VaccinationConfig
 from .transforms import ParameterTransformConfig
 
 PopulationSource = Literal["builtin", "custom"]
@@ -314,6 +314,10 @@ class SimulationMetadata(BaseModel):
     parameter_transforms: list[ParameterTransformConfig] | None = Field(
         default=None,
         description="Parameter transforms applied to the run, echoed from the request.",
+    )
+    vaccination: VaccinationConfig | None = Field(
+        default=None,
+        description="Vaccination configuration applied to the run, echoed from the request.",
     )
 
 

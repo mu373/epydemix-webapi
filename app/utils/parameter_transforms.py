@@ -10,12 +10,60 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
+import pandas as pd
 
 from .scaling import get_scaled_parameter
 from .seasonality import get_seasonal_transmission_balcan
 
 if TYPE_CHECKING:
     from ..api.v1.schemas.simulation import ParameterTransformConfig
+
+
+def broadcast_to_time_and_age(value, T: int, N: int) -> np.ndarray:
+    """Broadcast a parameter value to a fresh ``(T, N)`` float array.
+
+    Accepts the same shapes ``apply_transform_to_parameter`` does:
+      - scalar (no ``__len__``)            → ``(T, N)`` filled
+      - 1D length T (time-varying)         → ``(T, N)`` tiled across age
+      - 1D length N (age-varying)          → ``(T, N)`` tiled across time
+      - 2D ``(1, N)``                      → ``(T, N)`` tiled across time
+      - 2D ``(T, N)``                      → ``(T, N)`` copy
+
+    Always returns a freshly allocated, contiguous ``np.ndarray`` of dtype
+    float so callers can overwrite slices in place.
+    """
+    if not hasattr(value, "__len__"):
+        return np.full((T, N), float(value), dtype=np.float64)
+    arr = np.asarray(value, dtype=np.float64)
+    if arr.ndim == 1 and arr.shape[0] == T:
+        return np.broadcast_to(arr[:, None], (T, N)).copy()
+    if arr.ndim == 1 and arr.shape[0] == N:
+        return np.broadcast_to(arr[None, :], (T, N)).copy()
+    if arr.ndim == 2 and arr.shape == (1, N):
+        return np.broadcast_to(arr, (T, N)).copy()
+    if arr.ndim == 2 and arr.shape == (T, N):
+        return arr.copy()
+    raise ValueError(
+        f"Cannot broadcast parameter value of shape {arr.shape} to (T={T}, N={N})"
+    )
+
+
+def window_mask_for_dates(
+    start_date: str,
+    end_date: str,
+    dates: np.ndarray,
+) -> np.ndarray:
+    """Return a boolean mask over ``dates`` for ``[start_date, end_date]``.
+
+    ``dates`` is the simulation date grid (``numpy.datetime64`` array, the
+    output of ``compute_simulation_dates``). The mask is inclusive on both
+    ends and aligned to the day. Steps falling between two daily grid points
+    are included if their grid date sits within the window.
+    """
+    date_ts = pd.to_datetime([np.datetime_as_string(d, unit="D") for d in dates])
+    start = pd.Timestamp(start_date)
+    end = pd.Timestamp(end_date)
+    return np.asarray((date_ts >= start) & (date_ts <= end))
 
 
 def apply_transform_to_parameter(existing_value, transform_array: np.ndarray) -> np.ndarray:

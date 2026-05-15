@@ -93,9 +93,12 @@ class ScaleTransform(_BaseTransform):
 class OverrideTransform(_BaseTransform):
     """Absolute value override during a date window.
 
-    Replaces the parameter wholesale during `[start_date, end_date]`. Stored in
-    `model.overrides` separately from `model.parameters`, so an override always
-    wins for its window regardless of where it appears in the transform list.
+    Replaces the parameter wholesale during `[start_date, end_date]`. Applied
+    last in the transform pass, so an override always wins for its window
+    regardless of where it appears in the list. The override is baked into
+    `model.parameters`, so calculated parameters that reference the target
+    pick up the overridden value automatically (the same as `balcan` /
+    `scale`).
     """
 
     method: Literal["override"]

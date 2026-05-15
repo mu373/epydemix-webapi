@@ -270,8 +270,14 @@ def test_calculated_param_syntax_error(client):
     assert "recovery_rate" in response.json()["detail"]
 
 
-def test_calculated_param_transform_target_rejected(client):
-    """A `parameter_transforms` entry targeting a calculated name → 422."""
+def test_calculated_param_transform_target_accepted(client):
+    """A `parameter_transforms` entry targeting a calculated name now applies in the calc-pass.
+
+    Previously the API rejected this with 422; the pipeline now defers calc-targeting
+    transforms until after expression evaluation so they layer on top of the evaluated
+    value. The source value also propagates naturally (a transform on the source
+    flows through the expression), but this test exercises the new calc-pass path.
+    """
     request = _custom_sir_request(
         {
             "p_h": 0.1,
@@ -289,11 +295,20 @@ def test_calculated_param_transform_target_rejected(client):
             "factor": 0.5,
         }
     ]
+    request["output"] = {"include_parameters": True}
     response = client.post("/api/v1/simulations", json=request)
-    assert response.status_code == 422
-    detail = response.json()["detail"]
-    assert "recovery_rate" in detail
-    assert "calculated parameter" in detail
+    assert response.status_code == 200, response.text
+    params = response.json()["results"]["parameters"]
+    assert "recovery_rate" in params["data"]
+    # Inside the scale window (2024-01-05..2024-01-10), recovery_rate should be
+    # `(1 - p_h) * gamma * 0.5` = 0.09; outside, it should be 0.18.
+    dates = params["dates"]
+    first_age_group = next(iter(params["data"]["recovery_rate"]))
+    series = params["data"]["recovery_rate"][first_age_group]
+    in_window = [v for d, v in zip(dates, series) if "2024-01-05" <= d <= "2024-01-10"]
+    out_of_window = [v for d, v in zip(dates, series) if d < "2024-01-05" or d > "2024-01-10"]
+    assert all(abs(v - 0.09) < 1e-9 for v in in_window)
+    assert all(abs(v - 0.18) < 1e-9 for v in out_of_window)
 
 
 def test_calculated_param_not_echoed_in_metadata(client):

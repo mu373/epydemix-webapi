@@ -173,7 +173,7 @@ def test_balcan_transform_writes_expected_array_into_model():
         SimulationConfig,
     )
     from app.services.simulation_service import (
-        apply_parameter_transforms,
+        apply_parameter_transforms_sources,
         create_model,
         setup_population,
     )
@@ -195,7 +195,7 @@ def test_balcan_transform_writes_expected_array_into_model():
         max_value=val_max,
         min_value=val_min,
     )
-    apply_parameter_transforms(model, [transform], sim_cfg)
+    apply_parameter_transforms_sources(model, [transform], sim_cfg)
 
     arr = model.parameters["transmission_rate"]
     assert hasattr(arr, "__len__")

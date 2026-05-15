@@ -552,7 +552,7 @@ def test_simulation_transform_no_aliasing():
         SimulationConfig,
     )
     from app.services.simulation_service import (
-        apply_parameter_transforms,
+        apply_parameter_transforms_sources,
         create_model,
         setup_population,
     )
@@ -577,7 +577,7 @@ def test_simulation_transform_no_aliasing():
             factor=3.0,
         ),
     ]
-    apply_parameter_transforms(model, list(transforms), sim_cfg)
+    apply_parameter_transforms_sources(model, list(transforms), sim_cfg)
 
     # Final stored value should be baseline * 2 * 3 = 6 across the window.
     final = model.get_parameter("transmission_rate")

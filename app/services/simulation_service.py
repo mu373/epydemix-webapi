@@ -7,9 +7,7 @@ and orchestrating the simulation workflow from request to response.
 import uuid
 
 import numpy as np
-import pandas as pd
 from epydemix.model.epimodel import EpiModel
-from epydemix.model.predefined_models import load_predefined_model
 from epydemix.population.population import Population, load_epydemix_population
 from epydemix.utils.utils import compute_simulation_dates
 
@@ -29,14 +27,18 @@ from ..api.v1.schemas.simulation import (
     SimulationResponse,
     SimulationRunMetadata,
 )
+from ..presets import PRESETS
 from ..utils.calculated_parameters import (
     RESERVED_NAMES,
     compute_reserved_params,
     evaluate_expressions,
 )
+from ..utils.parameter_conversions import resolve_parameter_conversions
 from ..utils.parameter_transforms import (
     apply_transform_to_parameter,
+    broadcast_to_time_and_age,
     compute_transform_array,
+    window_mask_for_dates,
 )
 from .population_service import _resolve_contacts_source
 from .results_processing import process_results
@@ -100,9 +102,10 @@ def create_model(
 
     Splits parameters into three groups by value type:
 
-    - Scalars (``float`` / ``int``) are wired in immediately. Presets seed
-      defaults via the preset constructor; user scalars then upsert via
-      ``add_parameter``.
+    - Scalars (``float`` / ``int``) are wired in immediately. For presets, the
+      preset builder seeds defaults and applies user scalars on top; for
+      custom models, scalars are wired straight into ``EpiModel`` at
+      construction.
     - List values (age-varying) are returned for application after
       ``setup_population`` has run, since epydemix needs
       ``population.num_groups`` for shape checks.
@@ -110,18 +113,9 @@ def create_model(
       for evaluation after ``parameter_transforms`` so transformed source
       shapes propagate through.
 
-    Parameters
-    ----------
-    config : ModelConfig
-        Model configuration containing either a preset name or custom
-        compartments and transitions.
-
-    Returns
-    -------
-    tuple of (EpiModel, dict, dict)
-        The model with scalar parameters applied, the age-varying parameters
-        deferred until population setup, and the expression-valued parameters
-        deferred until after transforms.
+    For presets, any preset-specific calculated parameters (e.g. V-SEIHR's
+    VE twins) are merged into ``expr_params``; user-supplied calc-params win
+    on collision.
     """
     raw = config.parameters or {}
     scalar_params: dict[str, float] = {
@@ -133,12 +127,10 @@ def create_model(
     expr_params: dict[str, str] = {k: v for k, v in raw.items() if isinstance(v, str)}
 
     if config.preset:
-        # Load with the preset's own defaults; user scalars then override them.
-        # Whichever scalars the preset doesn't reference are still added to
-        # model.parameters but stay unused, matching prior behavior.
-        model: EpiModel = load_predefined_model(config.preset)  # type: ignore[assignment]
-        for name, value in scalar_params.items():
-            model.add_parameter(parameter_name=name, value=value)
+        preset_def = PRESETS[config.preset]
+        model, preset_calc_params = preset_def.build_model(scalar_params)
+        # User calc-params win on collision (sensitivity scans, custom calibration).
+        expr_params = {**preset_calc_params, **expr_params}
         return model, list_params, expr_params
 
     model = EpiModel(compartments=config.compartments, parameters=scalar_params)
@@ -303,41 +295,23 @@ def apply_interventions(model: EpiModel, interventions: list[InterventionConfig]
         )
 
 
-def apply_parameter_transforms(
+def _apply_transforms_to_pass(
     model: EpiModel,
-    transforms: list[ParameterTransformConfig] | None,
+    transforms: list[ParameterTransformConfig],
     simulation_config: SimulationConfig,
-    calculated_names: set[str] | None = None,
 ) -> None:
-    """Apply parameter transforms (`balcan` / `scale` / `override`) to the model.
+    """Apply a list of transforms (already filtered to one pass) in place.
 
-    Multiplicative transforms (`balcan`, `scale`) are composed in the order
-    the user supplied them and written back to `model.parameters`. Override
-    transforms are applied last via `model.override_parameter` and live in
-    `model.overrides`, so they always win for their date window. All target
-    parameter names are validated up front so a typo surfaces as a clean error.
+    Used by both the source-pass and the calc-pass. Multiplicative transforms
+    (``balcan`` / ``scale``) compose in user-supplied order; ``override``
+    transforms are applied last so they always win for their window. Each
+    transform writes back to ``model.parameters`` via ``add_parameter``.
 
-    Calculated (expression-valued) parameters cannot be transform targets:
-    transforms apply to source parameters and propagate through expressions
-    via numpy broadcasting when `apply_calculated_parameters` runs afterward.
-
-    Mutates `model` in place.
+    Assumes every ``target_parameter`` is already validated to exist in
+    ``model.parameters``.
     """
     if not transforms:
         return
-
-    calc_names = calculated_names or set()
-    for transform in transforms:
-        if transform.target_parameter in calc_names:
-            raise ValueError(
-                f"parameter_transforms[*].target_parameter '{transform.target_parameter}' "
-                f"is a calculated parameter; transforms must target source parameters "
-                f"(scalar or age-varying) so they propagate through the expression."
-            )
-        if transform.target_parameter not in model.parameters:
-            raise ValueError(
-                f"parameter_transforms[*].target_parameter '{transform.target_parameter}' is not defined in model.parameters"
-            )
 
     multiplicative = [t for t in transforms if t.method in ("balcan", "scale")]
     overrides = [t for t in transforms if t.method == "override"]
@@ -356,12 +330,20 @@ def apply_parameter_transforms(
         new_value = apply_transform_to_parameter(existing, transform_array)
         model.add_parameter(parameter_name=transform.target_parameter, value=new_value)
 
-    # Overrides last; epydemix stores these in model.overrides separately.
-    # Defensive copy of list values so the model does not retain a reference
-    # to the request-body list. Per-age-group lists are reshaped to (1, N) so
-    # epydemix interprets them as age-varying rather than as a (too-short)
-    # time series.
+    if not overrides:
+        return
+
+    # Overrides write into model.parameters as (T, N) arrays so calculated
+    # parameters that reference the target pick up the override automatically
+    # (the same way balcan/scale propagate through expressions).
+    dates = compute_simulation_dates(
+        simulation_config.start_date,
+        simulation_config.end_date,
+        dt=simulation_config.dt,
+    )
+    T = len(dates)
     n_groups = model.population.num_groups
+
     for transform in overrides:
         if isinstance(transform.value, list):
             if len(transform.value) != n_groups:
@@ -369,15 +351,80 @@ def apply_parameter_transforms(
                     f"parameter_transforms[*].value for '{transform.target_parameter}' has length "
                     f"{len(transform.value)} but population has {n_groups} age groups"
                 )
-            value = np.array(transform.value).reshape(1, n_groups)
+            window_value: np.ndarray | float = np.asarray(transform.value, dtype=np.float64)
         else:
-            value = transform.value
-        model.override_parameter(
-            start_date=transform.start_date,
-            end_date=transform.end_date,
-            parameter_name=transform.target_parameter,
-            value=value,
-        )
+            window_value = float(transform.value)
+
+        existing = model.get_parameter(transform.target_parameter)
+        arr = broadcast_to_time_and_age(existing, T, n_groups)
+        mask = window_mask_for_dates(transform.start_date, transform.end_date, dates)
+        # Scalar broadcasts to (N,); 1D length-N broadcasts across the window's time slice.
+        arr[mask, :] = window_value
+        model.add_parameter(parameter_name=transform.target_parameter, value=arr)
+
+
+def apply_parameter_transforms_sources(
+    model: EpiModel,
+    transforms: list[ParameterTransformConfig] | None,
+    simulation_config: SimulationConfig,
+    calculated_names: set[str] | None = None,
+) -> None:
+    """Apply transforms targeting **source** (non-calc-param) parameters.
+
+    Validates target-parameter names against ``model.parameters`` (a typo
+    surfaces as a clean error). Skips any transform whose target is a
+    calculated parameter; those are deferred to
+    ``apply_parameter_transforms_calc`` so they see post-eval values.
+    """
+    if not transforms:
+        return
+
+    calc_names = calculated_names or set()
+    pending: list[ParameterTransformConfig] = []
+    for transform in transforms:
+        if transform.target_parameter in calc_names:
+            continue  # deferred to the calc-pass
+        if transform.target_parameter not in model.parameters:
+            raise ValueError(
+                f"parameter_transforms[*].target_parameter '{transform.target_parameter}' is not defined in model.parameters"
+            )
+        pending.append(transform)
+
+    _apply_transforms_to_pass(model, pending, simulation_config)
+
+
+def apply_parameter_transforms_calc(
+    model: EpiModel,
+    transforms: list[ParameterTransformConfig] | None,
+    simulation_config: SimulationConfig,
+    calculated_names: set[str] | None = None,
+) -> None:
+    """Apply transforms targeting **calculated** parameters.
+
+    Runs after ``apply_calculated_parameters`` so each calc-param has its
+    evaluated array stored on the model. Multiplicative transforms layer on
+    top of the evaluated value; overrides replace it within the window. A
+    transform on a source still propagates through any expression that
+    references it via ``apply_calculated_parameters``; this pass enables an
+    *additional* transform on the calc-param itself (e.g. a flat scale on
+    ``transmission_rate_vax`` while ``balcan`` modulates ``transmission_rate``).
+    """
+    if not transforms:
+        return
+
+    calc_names = calculated_names or set()
+    calc_targeting = [t for t in transforms if t.target_parameter in calc_names]
+    if not calc_targeting:
+        return
+
+    for transform in calc_targeting:
+        if transform.target_parameter not in model.parameters:
+            raise ValueError(
+                f"parameter_transforms[*].target_parameter '{transform.target_parameter}' is a calculated "
+                f"parameter that was not evaluated; check the `parameters` block for the matching expression."
+            )
+
+    _apply_transforms_to_pass(model, calc_targeting, simulation_config)
 
 
 def apply_calculated_parameters(
@@ -414,10 +461,11 @@ def extract_parameter_results(
 ) -> ParameterResults:
     """Build the per-step effective parameter arrays for the response.
 
-    Walks the same date grid the simulator uses (`compute_simulation_dates`),
-    broadcasts each parameter in `model.parameters` to a `(T, N)` array, then
-    bakes in any `model.overrides` windows (so the array reflects what actually
-    drove the simulation, not just `model.parameters`).
+    Walks the same date grid the simulator uses (``compute_simulation_dates``)
+    and broadcasts each parameter in ``model.parameters`` to a ``(T, N)``
+    array. Transforms (including overrides) have already been baked into
+    ``model.parameters`` upstream, so the returned arrays match exactly what
+    the simulator runs with.
     """
     dates = compute_simulation_dates(
         simulation_config.start_date,
@@ -428,52 +476,15 @@ def extract_parameter_results(
     age_groups = [str(name) for name in model.population.Nk_names]
     N = len(age_groups)
 
-    # Convert numpy datetime64 grid to ISO strings for the response.
     date_strs = [str(np.datetime_as_string(d, unit="D")) for d in dates]
-
-    def _broadcast(value) -> np.ndarray:
-        """Coerce a parameter's stored value (any of scalar / (T,) / (1,N) / (T,N)) to (T, N)."""
-        if not hasattr(value, "__len__"):
-            return np.full((T, N), float(value))
-        arr = np.asarray(value, dtype=float)
-        if arr.ndim == 1 and arr.shape[0] == T:
-            return np.broadcast_to(arr[:, None], (T, N)).copy()
-        if arr.ndim == 1 and arr.shape[0] == N:
-            return np.broadcast_to(arr[None, :], (T, N)).copy()
-        if arr.ndim == 2 and arr.shape == (1, N):
-            return np.broadcast_to(arr, (T, N)).copy()
-        if arr.ndim == 2 and arr.shape == (T, N):
-            return arr.copy()
-        raise ValueError(f"Cannot broadcast parameter array of shape {arr.shape} to (T={T}, N={N})")
-
-    # Pre-compute per-date pandas timestamps for override-window comparison.
-    date_ts = pd.to_datetime(date_strs)
 
     data: dict[str, dict[str, list[float]]] = {}
     for name, value in model.parameters.items():
         try:
-            arr = _broadcast(value)
+            arr = broadcast_to_time_and_age(value, T, N)
         except ValueError:
-            # Unknown shape (e.g., some prior wrapped in np.array of dtype=object). Skip.
+            # Unknown shape (e.g. wrapped object array). Skip rather than fail.
             continue
-
-        # Apply overrides into the array. epydemix stores them in model.overrides
-        # as a dict[name, list[{start_date, end_date, value}]].
-        for override in model.overrides.get(name, []):
-            start = pd.Timestamp(override["start_date"])
-            end = pd.Timestamp(override["end_date"])
-            mask = (date_ts >= start) & (date_ts <= end)
-            ov_value = override["value"]
-            if hasattr(ov_value, "__len__"):
-                ov_arr = np.asarray(ov_value, dtype=float).reshape(-1)
-                if ov_arr.shape[0] == N:
-                    arr[mask, :] = ov_arr[None, :]
-                else:
-                    # Length doesn't match age groups; skip rather than guess.
-                    continue
-            else:
-                arr[mask, :] = float(ov_value)
-
         data[name] = {age_groups[i]: arr[:, i].tolist() for i in range(N)}
 
     return ParameterResults(dates=date_strs, data=data)
@@ -523,7 +534,7 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
             )
 
         # Create model (scalar params applied; age-varying and expression
-        # params deferred — the former until population is set, the latter
+        # params are deferred: the former until population is set, the latter
         # until after transforms so source shapes propagate through).
         model, list_params, expr_params = create_model(request.model)
 
@@ -533,22 +544,42 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
         # Add age-varying base parameters now that the population is resolved.
         apply_age_varying_parameters(model, list_params)
 
+        # Inject preset-scoped parameter conversions (period→rate, R0→β).
+        # Custom models (no preset) opt out: pass [] so nothing is injected.
+        preset_def = PRESETS[request.model.preset] if request.model.preset else None
+        enabled_conversions = preset_def.parameter_conversions if preset_def else []
+        user_scalar_names = {
+            k for k, v in (request.model.parameters or {}).items() if not isinstance(v, str)
+        }
+        converted = resolve_parameter_conversions(
+            model.parameters, user_scalar_names, enabled_conversions
+        )
+        # User calc-params still win over registry-injected conversions on collision.
+        expr_params = {**converted, **expr_params}
+
         # Apply interventions
         apply_interventions(model, request.interventions)
 
-        # Apply parameter transforms (balcan / scale / override). Calculated
-        # parameter names are passed in so a transform targeting one fails
-        # with a clear error rather than silently no-op'ing.
-        apply_parameter_transforms(
+        # Source-pass transforms first (balcan/scale/override on non-calc names).
+        calc_names = set(expr_params)
+        apply_parameter_transforms_sources(
             model,
             request.parameter_transforms,
             request.simulation,
-            calculated_names=set(expr_params),
+            calculated_names=calc_names,
         )
 
         # Evaluate calculated (expression) parameters now that all source
         # values have their final shapes.
         apply_calculated_parameters(model, expr_params)
+
+        # Calc-pass transforms on top of evaluated calc-params.
+        apply_parameter_transforms_calc(
+            model,
+            request.parameter_transforms,
+            request.simulation,
+            calculated_names=calc_names,
+        )
 
         # Create initial conditions
         initial_conditions = create_initial_conditions(model, request.initial_conditions)

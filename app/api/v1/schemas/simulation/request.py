@@ -4,7 +4,12 @@ from typing import Annotated, Any, Literal, TypeAlias
 
 from pydantic import BaseModel, BeforeValidator, Field, model_validator
 
+from .....presets import preset_names
 from .transforms import ParameterTransformConfig
+
+# Preset literal sourced from the registry so adding a preset doesn't require
+# editing this file.
+PresetName: TypeAlias = Literal[preset_names()]  # type: ignore[valid-type]
 
 
 def _ensure_list(v: str | list[str]) -> list[str]:
@@ -43,13 +48,15 @@ class TransitionConfig(BaseModel):
 class ModelConfig(BaseModel):
     """Epidemic model configuration. Use `preset` for a built-in model (SIR, SEIR, SIS), or provide `compartments`, `parameters`, and `transitions` for a custom model."""
 
-    preset: Literal["SIR", "SEIR", "SIS"] | None = Field(
+    preset: PresetName | None = Field(
         default=None,
         description=(
             "Predefined model preset. Auto-configures compartments and transitions.\n"
             "- `SIR`: Susceptible-Infected-Recovered\n"
             "- `SEIR`: Susceptible-Exposed-Infected-Recovered\n"
             "- `SIS`: Susceptible-Infected-Susceptible\n"
+            "- `V-SEIHR`: Vaccinated SEIHR with parallel unvaccinated/vaccinated "
+            "compartments. Use together with the `vaccination` block.\n"
             "When using a preset, you can still override default parameter values via `parameters`."
         ),
     )

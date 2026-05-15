@@ -692,13 +692,10 @@ def test_sir_period_inputs_match_explicit_rate(client):
     )
     assert period_resp.status_code == rate_resp.status_code == 200
 
-    period_compartments = period_resp.json()["results"]["compartments"]["data"]
-    rate_compartments = rate_resp.json()["results"]["compartments"]["data"]
-    period_med = next(iter(period_compartments["Infected"].values()))
-    rate_med = next(iter(rate_compartments["Infected"].values()))
-    key = "median" if "median" in period_med else "0.5"
-    # With the same seed, the trajectories should be identical.
-    assert period_med[key] == rate_med[key]
+    period_infected = period_resp.json()["results"]["compartments"]["data"]["Infected"]
+    rate_infected = rate_resp.json()["results"]["compartments"]["data"]["Infected"]
+    # Same seed = identical trajectories across every age group and every quantile.
+    assert period_infected == rate_infected
 
 
 def test_sir_R0_drives_transmission_rate(client):

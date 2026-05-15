@@ -582,7 +582,7 @@ def test_simulation_transform_no_aliasing():
     # Final stored value should be baseline * 2 * 3 = 6 across the window.
     final = model.get_parameter("transmission_rate")
     assert hasattr(final, "__len__")
-    assert all(abs(v - 6.0) < 1e-9 for v in final)
+    assert list(final) == pytest.approx([6.0] * len(final), abs=1e-9)
 
 
 def _calc_param_sir_request(parameters: dict) -> dict:
@@ -635,8 +635,8 @@ def test_transform_on_calc_param_target_accepted(client):
     out_of_window = [v for d, v in zip(dates, series) if d < "2024-01-10" or d > "2024-01-20"]
     # Inside: a*2*0.5 = 0.3*2*0.5 = 0.3
     # Outside: a*2 = 0.6
-    assert all(abs(v - 0.3) < 1e-9 for v in in_window)
-    assert all(abs(v - 0.6) < 1e-9 for v in out_of_window)
+    assert in_window == pytest.approx([0.3] * len(in_window), abs=1e-9)
+    assert out_of_window == pytest.approx([0.6] * len(out_of_window), abs=1e-9)
 
 
 def test_override_on_calc_param_target(client):
@@ -660,8 +660,8 @@ def test_override_on_calc_param_target(client):
     series = next(iter(params["data"]["b"].values()))
     in_window = [v for d, v in zip(dates, series) if "2024-01-10" <= d <= "2024-01-20"]
     out_of_window = [v for d, v in zip(dates, series) if d < "2024-01-10" or d > "2024-01-20"]
-    assert all(abs(v - 99.0) < 1e-9 for v in in_window)
-    assert all(abs(v - 0.6) < 1e-9 for v in out_of_window)
+    assert in_window == pytest.approx([99.0] * len(in_window), abs=1e-9)
+    assert out_of_window == pytest.approx([0.6] * len(out_of_window), abs=1e-9)
 
 
 def test_override_composes_after_scale(client):
@@ -692,8 +692,8 @@ def test_override_composes_after_scale(client):
     series = next(iter(params["data"]["transmission_rate"].values()))
     in_window = [v for d, v in zip(dates, series) if "2024-01-10" <= d <= "2024-01-20"]
     out_of_window = [v for d, v in zip(dates, series) if d < "2024-01-10" or d > "2024-01-20"]
-    assert all(abs(v - 5.0) < 1e-9 for v in in_window)
-    assert all(abs(v - 1.0) < 1e-9 for v in out_of_window)
+    assert in_window == pytest.approx([5.0] * len(in_window), abs=1e-9)
+    assert out_of_window == pytest.approx([1.0] * len(out_of_window), abs=1e-9)
 
 
 def test_override_on_source_propagates_to_calc_param(client):
@@ -717,5 +717,5 @@ def test_override_on_source_propagates_to_calc_param(client):
     series_b = next(iter(params["data"]["b"].values()))
     in_window = [v for d, v in zip(dates, series_b) if "2024-01-10" <= d <= "2024-01-20"]
     out_of_window = [v for d, v in zip(dates, series_b) if d < "2024-01-10" or d > "2024-01-20"]
-    assert all(abs(v - 10.0) < 1e-9 for v in in_window)
-    assert all(abs(v - 2.0) < 1e-9 for v in out_of_window)
+    assert in_window == pytest.approx([10.0] * len(in_window), abs=1e-9)
+    assert out_of_window == pytest.approx([2.0] * len(out_of_window), abs=1e-9)

@@ -307,8 +307,8 @@ def test_calculated_param_transform_target_accepted(client):
     series = params["data"]["recovery_rate"][first_age_group]
     in_window = [v for d, v in zip(dates, series) if "2024-01-05" <= d <= "2024-01-10"]
     out_of_window = [v for d, v in zip(dates, series) if d < "2024-01-05" or d > "2024-01-10"]
-    assert all(abs(v - 0.09) < 1e-9 for v in in_window)
-    assert all(abs(v - 0.18) < 1e-9 for v in out_of_window)
+    assert in_window == pytest.approx([0.09] * len(in_window), abs=1e-9)
+    assert out_of_window == pytest.approx([0.18] * len(out_of_window), abs=1e-9)
 
 
 def test_calculated_param_not_echoed_in_metadata(client):
@@ -675,7 +675,7 @@ def test_sir_infectious_period_drives_recovery_rate(client):
     assert response.status_code == 200, response.text
     params = response.json()["results"]["parameters"]["data"]
     series = next(iter(params["recovery_rate"].values()))
-    assert all(abs(v - 1 / 7.0) < 1e-12 for v in series)
+    assert series == pytest.approx([1 / 7.0] * len(series), abs=1e-12)
 
 
 def test_sir_period_inputs_match_explicit_rate(client):
@@ -724,7 +724,7 @@ def test_both_passed_derived_wins(client):
     params = response.json()["results"]["parameters"]["data"]
     series = next(iter(params["recovery_rate"].values()))
     # User scalar `recovery_rate: 0.5` should stand, not the conversion `1/7`.
-    assert all(abs(v - 0.5) < 1e-12 for v in series)
+    assert series == pytest.approx([0.5] * len(series), abs=1e-12)
     # `infectious_period` source scalar should have been popped from model.parameters.
     assert "infectious_period" not in params
 
@@ -748,7 +748,7 @@ def test_custom_model_no_implicit_period_conversion(client):
     params = response.json()["results"]["parameters"]["data"]
     # User scalar wins; the conversion is opted out so `recovery_rate` stays at 0.1.
     series = next(iter(params["recovery_rate"].values()))
-    assert all(abs(v - 0.1) < 1e-12 for v in series)
+    assert series == pytest.approx([0.1] * len(series), abs=1e-12)
     # `infectious_period` is present but unused: NOT consumed by any conversion.
     assert "infectious_period" in params
 
@@ -776,5 +776,5 @@ def test_source_override_propagates_through_calc_param(client):
     out_of_window = [v for d, v in zip(dates, series) if d < "2024-01-10" or d > "2024-01-20"]
     # Before Step 0b, `b` stayed at 2.0 everywhere because override wrote to a
     # sibling `model.overrides` dict that calc-param eval never read.
-    assert all(abs(v - 10.0) < 1e-9 for v in in_window)
-    assert all(abs(v - 2.0) < 1e-9 for v in out_of_window)
+    assert in_window == pytest.approx([10.0] * len(in_window), abs=1e-9)
+    assert out_of_window == pytest.approx([2.0] * len(out_of_window), abs=1e-9)

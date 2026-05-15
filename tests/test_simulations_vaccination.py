@@ -6,6 +6,8 @@ Tests here verify validation paths and source/target resolution on a custom
 preset-default dependence.
 """
 
+import pytest
+
 
 def _custom_vax_model_request(**overrides):
     """Minimal custom S/S_vax/I model with vaccination wired explicitly."""
@@ -180,9 +182,8 @@ def test_vaccination_dose_count_close_to_expected(client):
     series = quantile_data[median_key]
     dates = data["results"]["transitions"]["dates"]
     in_window = [v for d, v in zip(dates, series) if "2025-01-05" <= d <= "2025-01-15"]
-    # 11 days, 10000 daily doses, dt=1.0; tolerate 30% noise across the median.
+    # 11 days, 10000 daily doses, dt=1.0; tolerate 50% noise across the median
+    # (small Nsim=20, single-sim quantile is noisier than the mean).
     expected = 10_000 * 11
     cumulative = sum(in_window)
-    assert 0.5 * expected < cumulative < 1.5 * expected, (
-        f"cumulative S_to_S_vax = {cumulative}, expected ~{expected}"
-    )
+    assert cumulative == pytest.approx(expected, rel=0.5)

@@ -5,6 +5,8 @@ chain (period inputs and R0 -> beta), and integration with the vaccination
 block.
 """
 
+import pytest
+
 from app.presets import PRESETS
 
 
@@ -104,8 +106,12 @@ def test_v_seihr_VE_zero(client):
     assert response.status_code == 200, response.text
     params = response.json()["results"]["parameters"]["data"]
     first = next(iter(params["transmission_rate"]))
-    assert abs(params["transmission_rate"][first][0] - params["transmission_rate_vax"][first][0]) < 1e-9
-    assert abs(params["hosp_proportion"][first][0] - params["hosp_proportion_vax"][first][0]) < 1e-9
+    assert params["transmission_rate_vax"][first][0] == pytest.approx(
+        params["transmission_rate"][first][0], abs=1e-9
+    )
+    assert params["hosp_proportion_vax"][first][0] == pytest.approx(
+        params["hosp_proportion"][first][0], abs=1e-9
+    )
 
 
 def test_v_seihr_waning_off_by_default(client):
@@ -116,7 +122,7 @@ def test_v_seihr_waning_off_by_default(client):
     assert response.status_code == 200
     params = response.json()["results"]["parameters"]["data"]
     series = next(iter(params["waning_rate"].values()))
-    assert all(abs(v) < 1e-12 for v in series)
+    assert series == pytest.approx([0.0] * len(series), abs=1e-12)
 
 
 def test_v_seihr_waning_enabled_via_immunity_duration(client):
@@ -128,7 +134,7 @@ def test_v_seihr_waning_enabled_via_immunity_duration(client):
     assert response.status_code == 200, response.text
     params = response.json()["results"]["parameters"]["data"]
     series = next(iter(params["waning_rate"].values()))
-    assert all(abs(v - 1 / 365.0) < 1e-9 for v in series)
+    assert series == pytest.approx([1 / 365.0] * len(series), abs=1e-9)
 
 
 def test_v_seihr_with_vaccination_campaign(client):

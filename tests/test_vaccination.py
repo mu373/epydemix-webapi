@@ -52,7 +52,7 @@ def test_rate_fn_inactive_campaign_returns_zero():
         {"source": "X"},
         {"t": 0, "pop": np.array([[100.0], [0.0]]), "comp_indices": {"X": 0, "X_vax": 1}},
     )
-    assert np.allclose(rate, 0.0)
+    assert rate == pytest.approx(0.0, abs=1e-12)
 
 
 def test_rate_fn_with_empty_source_returns_zero():
@@ -65,7 +65,7 @@ def test_rate_fn_with_empty_source_returns_zero():
         {"t": 0, "pop": np.array([[0.0], [0.0]]), "comp_indices": {"X": 0, "X_vax": 1}},
     )
     assert np.all(np.isfinite(rate))
-    assert np.allclose(rate, 0.0)
+    assert rate == pytest.approx(0.0, abs=1e-12)
 
 
 def test_flat_count_delivers_expected_doses_per_day():
@@ -107,7 +107,7 @@ def test_flat_count_delivers_expected_doses_per_day():
     # and per-step std ~ sqrt(1000) ~ 32, the std of the mean is ~ 4.5,
     # so a 15% tolerance gives plenty of headroom.
     in_window = (sim_dates >= np.datetime64(c_start)) & (sim_dates <= np.datetime64(c_end))
-    assert np.allclose(mean_per_step[in_window], daily_doses, rtol=0.15)
+    assert mean_per_step[in_window] == pytest.approx(daily_doses, rel=0.15)
     # Outside the window: hard zero (schedule is exactly 0, no stochasticity).
     assert np.all(per_step[:, ~in_window] == 0)
 

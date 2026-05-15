@@ -1,5 +1,7 @@
 """Custom-population path through the simulation endpoint and schema validators."""
 
+import pytest
+
 CUSTOM_POPULATION_REQUEST = {
     "model": {
         "preset": "SIR",
@@ -290,17 +292,9 @@ def test_homogeneous_sir_matches_ode_solution(client):
     final_size_sim = float(N - S_med[-1])
     final_size_ode = float(N - S_ode[-1])
 
-    # Peak timing within ±2 days (measured shift at this config: +1 day).
-    assert abs(peak_day_sim - peak_day_ode) <= 2, (
-        f"peak day mismatch: sim={peak_day_sim}, ode={peak_day_ode}"
-    )
+    # Peak timing within +-2 days (measured shift at this config: +1 day).
+    assert peak_day_sim == pytest.approx(peak_day_ode, abs=2)
     # Peak height within 3% (measured: ~1.3%).
-    peak_err = abs(peak_height_sim - peak_height_ode) / peak_height_ode
-    assert peak_err < 0.03, (
-        f"peak height mismatch: sim={peak_height_sim:.0f}, ode={peak_height_ode:.0f}, err={peak_err:.2%}"
-    )
+    assert peak_height_sim == pytest.approx(peak_height_ode, rel=0.03)
     # Final epidemic size within 1% (measured: ~0.27%). Most stable invariant.
-    final_err = abs(final_size_sim - final_size_ode) / final_size_ode
-    assert final_err < 0.01, (
-        f"final size mismatch: sim={final_size_sim:.0f}, ode={final_size_ode:.0f}, err={final_err:.2%}"
-    )
+    assert final_size_sim == pytest.approx(final_size_ode, rel=0.01)

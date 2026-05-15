@@ -647,3 +647,137 @@ def test_seir_vax_end_to_end(client):
     params = response.json()["results"]["parameters"]["data"]
     series = next(iter(params["transmission_rate_v"].values()))
     assert series[0] == pytest.approx(0.5 * 0.3, abs=1e-9)
+
+
+# -- Preset-scoped parameter conversions (period -> rate, R0 -> beta) ----------
+
+
+def _preset_request(preset: str, parameters: dict) -> dict:
+    return {
+        "model": {"preset": preset, "parameters": parameters},
+        "population": {"name": "United_States"},
+        "simulation": {
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-31",
+            "Nsim": 2,
+            "seed": 7,
+        },
+        "output": {"include_parameters": True},
+    }
+
+
+def test_sir_infectious_period_drives_recovery_rate(client):
+    """`infectious_period: 7.0` on SIR injects `recovery_rate = 1/7` as a calc-param."""
+    response = client.post(
+        "/api/v1/simulations",
+        json=_preset_request("SIR", {"infectious_period": 7.0, "transmission_rate": 0.3}),
+    )
+    assert response.status_code == 200, response.text
+    params = response.json()["results"]["parameters"]["data"]
+    series = next(iter(params["recovery_rate"].values()))
+    assert all(abs(v - 1 / 7.0) < 1e-12 for v in series)
+
+
+def test_sir_period_inputs_match_explicit_rate(client):
+    """Period-style and rate-style inputs produce identical trajectories with the same seed."""
+    period_resp = client.post(
+        "/api/v1/simulations",
+        json=_preset_request(
+            "SIR", {"infectious_period": 7.0, "transmission_rate": 0.3}
+        ),
+    )
+    rate_resp = client.post(
+        "/api/v1/simulations",
+        json=_preset_request("SIR", {"recovery_rate": 1 / 7.0, "transmission_rate": 0.3}),
+    )
+    assert period_resp.status_code == rate_resp.status_code == 200
+
+    period_compartments = period_resp.json()["results"]["compartments"]["data"]
+    rate_compartments = rate_resp.json()["results"]["compartments"]["data"]
+    period_med = next(iter(period_compartments["Infected"].values()))
+    rate_med = next(iter(rate_compartments["Infected"].values()))
+    key = "median" if "median" in period_med else "0.5"
+    # With the same seed, the trajectories should be identical.
+    assert period_med[key] == rate_med[key]
+
+
+def test_sir_R0_drives_transmission_rate(client):
+    """`R0: 2.5` injects `transmission_rate = R0 * recovery_rate / eig(C)`."""
+    response = client.post(
+        "/api/v1/simulations",
+        json=_preset_request("SIR", {"R0": 2.5, "recovery_rate": 0.1}),
+    )
+    assert response.status_code == 200, response.text
+    params = response.json()["results"]["parameters"]["data"]
+    series = next(iter(params["transmission_rate"].values()))
+    # Non-zero, finite values; exact value depends on the contact-matrix eigenvalue.
+    assert series[0] > 0
+    assert series[0] == series[-1]  # scalar source, no time variation
+
+
+def test_both_passed_derived_wins(client):
+    """Passing both `infectious_period` and `recovery_rate`: the derived (rate) wins."""
+    response = client.post(
+        "/api/v1/simulations",
+        json=_preset_request(
+            "SIR", {"infectious_period": 7.0, "recovery_rate": 0.5, "transmission_rate": 0.3}
+        ),
+    )
+    assert response.status_code == 200, response.text
+    params = response.json()["results"]["parameters"]["data"]
+    series = next(iter(params["recovery_rate"].values()))
+    # User scalar `recovery_rate: 0.5` should stand, not the conversion `1/7`.
+    assert all(abs(v - 0.5) < 1e-12 for v in series)
+    # `infectious_period` source scalar should have been popped from model.parameters.
+    assert "infectious_period" not in params
+
+
+def test_custom_model_no_implicit_period_conversion(client):
+    """Custom models opt out of period-to-rate conversion.
+
+    Even with `infectious_period` supplied, no `recovery_rate` calc-param
+    is injected: the conversion is preset-scoped. `infectious_period` is
+    just an unused parameter name; nothing implicit happens.
+    """
+    request = _custom_sir_request(
+        {
+            "infectious_period": 7.0,
+            "transmission_rate": 0.3,
+            "recovery_rate": 0.1,  # supplied explicitly; conversion would otherwise drive this
+        }
+    )
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200, response.text
+    params = response.json()["results"]["parameters"]["data"]
+    # User scalar wins; the conversion is opted out so `recovery_rate` stays at 0.1.
+    series = next(iter(params["recovery_rate"].values()))
+    assert all(abs(v - 0.1) < 1e-12 for v in series)
+    # `infectious_period` is present but unused: NOT consumed by any conversion.
+    assert "infectious_period" in params
+
+
+def test_source_override_propagates_through_calc_param(client):
+    """An `override` transform on a source parameter flows through expressions that reference it."""
+    request = _custom_sir_request(
+        {"a": 1.0, "b": "a * 2", "transmission_rate": 0.3, "recovery_rate": 0.1}
+    )
+    request["parameter_transforms"] = [
+        {
+            "target_parameter": "a",
+            "method": "override",
+            "start_date": "2024-01-10",
+            "end_date": "2024-01-20",
+            "value": 5.0,
+        }
+    ]
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200, response.text
+    params = response.json()["results"]["parameters"]
+    dates = params["dates"]
+    series = next(iter(params["data"]["b"].values()))
+    in_window = [v for d, v in zip(dates, series) if "2024-01-10" <= d <= "2024-01-20"]
+    out_of_window = [v for d, v in zip(dates, series) if d < "2024-01-10" or d > "2024-01-20"]
+    # Before Step 0b, `b` stayed at 2.0 everywhere because override wrote to a
+    # sibling `model.overrides` dict that calc-param eval never read.
+    assert all(abs(v - 10.0) < 1e-9 for v in in_window)
+    assert all(abs(v - 2.0) < 1e-9 for v in out_of_window)

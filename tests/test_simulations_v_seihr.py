@@ -209,3 +209,141 @@ def test_v_seihr_explicit_initial_conditions(client):
     }
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 200, response.text
+
+
+@pytest.mark.slow
+def test_v_seihr_vaccination_speed_orders_outcomes(client):
+    """Faster rollout monotonically decreases both peak incidence and final size.
+
+    Runs five scenarios on a homogeneous 1M population:
+      - No vaccination (baseline)
+      - Pulse on day 2 (essentially all S -> S_vax in one step)
+      - Flat very fast (3% of N per day, 6-month window)
+      - Flat fast (1% of N per day, 6-month window)
+      - Flat slow (0.1% of N per day, 6-month window)
+
+    Expected ordering for both metrics:
+        pulse <= very_fast <= fast <= slow <= no_vax
+
+    Peak incidence = max over time of the median daily
+    `Exposed_to_Infected + Exposed_vax_to_Infected_vax` count.
+
+    Final size = `1 - (S(end) + S_vax(end)) / N`,
+    i.e. the fraction of the population that ever left the susceptible pools (vaccinated or not).
+    """
+    n_pop = 1_000_000
+    horizon = ("2025-01-01", "2025-08-31")
+    base = {
+        "model": {
+            "preset": "V-SEIHR",
+            "parameters": {
+                "R0": 2.5,
+                "incubation_period": 3.0,
+                "infectious_period": 2.5,
+                "hospitalization_duration": 5.0,
+                "hosp_proportion": 0.05,
+                "VE_S": 0.85,
+                "VE_H": 0.9,
+            },
+        },
+        "population": {
+            "source": "custom",
+            "name": "homogeneous",
+            "age_groups": {"all": n_pop},
+            "contact_matrices": {"all": [[1.0]]},
+        },
+        "simulation": {
+            "start_date": horizon[0],
+            "end_date": horizon[1],
+            "Nsim": 15,
+            "seed": 7,
+        },
+        "initial_conditions": {
+            "method": "percentage",
+            "initial_percentages": {"Infected": 0.1},
+        },
+    }
+
+    def _campaign(daily_doses, start="2025-01-02", end="2025-06-30"):
+        return {
+            "campaigns": [
+                {
+                    "start_date": start,
+                    "end_date": end,
+                    "rollout": {"type": "flat_count", "daily_doses": daily_doses},
+                }
+            ]
+        }
+
+    scenarios = {
+        "no_vax": None,
+        "pulse": _campaign(1e11, start="2025-01-02", end="2025-01-02"),
+        "very_fast": _campaign(0.03 * n_pop),
+        "fast": _campaign(0.01 * n_pop),
+        "slow": _campaign(0.001 * n_pop),
+    }
+
+    def _run(vaccination):
+        req = dict(base)
+        if vaccination is not None:
+            req = {**req, "vaccination": vaccination}
+        resp = client.post("/api/v1/simulations", json=req)
+        assert resp.status_code == 200, resp.text
+        return resp.json()["results"]
+
+    def _peak_incidence(results):
+        inc_u = next(iter(results["transitions"]["data"]["Exposed_to_Infected"].values()))["0.5"]
+        inc_v = next(iter(results["transitions"]["data"]["Exposed_vax_to_Infected_vax"].values()))["0.5"]
+        return max(a + b for a, b in zip(inc_u, inc_v))
+
+    def _final_attack_rate(results):
+        s = next(iter(results["compartments"]["data"]["Susceptible"].values()))["0.5"]
+        s_vax = next(iter(results["compartments"]["data"]["Susceptible_vax"].values()))["0.5"]
+        return 1.0 - (s[-1] + s_vax[-1]) / n_pop
+
+    bodies = {k: _run(v) for k, v in scenarios.items()}
+    peaks = {k: _peak_incidence(b) for k, b in bodies.items()}
+    finals = {k: _final_attack_rate(b) for k, b in bodies.items()}
+
+    # The flat scenarios should actually deliver near `daily_doses` doses per
+    # day during the early campaign window (before the epidemic noticeably
+    # drains S) and never exceed `daily_doses` by more than stochastic noise.
+    daily_targets = {
+        "very_fast": 0.03 * n_pop,
+        "fast": 0.01 * n_pop,
+        "slow": 0.001 * n_pop,
+    }
+    for key, target in daily_targets.items():
+        vax_series = next(iter(
+            bodies[key]["transitions"]["data"]["Susceptible_to_Susceptible_vax"].values()
+        ))["0.5"]
+        # First five in-window days
+        early = vax_series[1:6]
+
+        # Should mostly hit the target in the initial phases of rollout, before the epidemic noticeably drains S.
+        assert all(v == pytest.approx(target, rel=0.05) for v in early), (
+            f"{key}: early in-window doses {early} not near target {target}"
+        )
+
+        # Median never exceeds the per-day budget by more than the stochastic
+        # noise.
+        assert max(vax_series) <= target * 1.05, (
+            f"{key}: max daily doses {max(vax_series):.0f} > 1.05 * target {target:.0f}"
+        )
+
+    order = ["pulse", "very_fast", "fast", "slow", "no_vax"]
+    # Peak size and final size should be monotonically non-decreasing along this order
+    for prev, curr in zip(order, order[1:]):
+        assert peaks[prev] <= peaks[curr], (
+            f"peak incidence: {prev}={peaks[prev]:.0f} not <= {curr}={peaks[curr]:.0f}"
+        )
+        assert finals[prev] <= finals[curr], (
+            f"final size: {prev}={finals[prev]:.4f} not <= "
+            f"{curr}={finals[curr]:.4f}"
+        )
+
+    # Pulse on day 2 should essentially eliminate the epidemic: with VE_S=0.85
+    # and a tiny initial seed, only a small fraction ever gets infected.
+    assert finals["pulse"] < 0.01, (
+        f"pulse final size = {finals['pulse']:.4f}, expected < 0.01"
+    )

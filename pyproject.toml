@@ -56,3 +56,6 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "slow: tests that take more than ~5 seconds; deselect with `-m 'not slow'`",
+]

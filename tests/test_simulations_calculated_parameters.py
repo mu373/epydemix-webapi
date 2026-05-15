@@ -2,6 +2,14 @@
 
 import pytest
 
+_HOMOGENEOUS_POPULATION = {
+    "source": "custom",
+    "name": "homogeneous",
+    "age_groups": {"all": 1_000_000},
+    "contact_matrices": {"all": [[1.0]]},
+}
+
+
 _AGE_GROUP_MAPPING_5 = {
     "0-4": ["0-4"],
     "5-17": ["5-9", "10-14", "15-19"],
@@ -12,7 +20,7 @@ _AGE_GROUP_MAPPING_5 = {
 
 
 def _custom_sir_request(parameters: dict) -> dict:
-    """SIR custom model used as a substrate for exercising calculated params.
+    """SIR custom model on a homogeneous population used as a substrate for exercising calculated params.
 
     Defines `S, I, R` with `S → I` mediated by `transmission_rate` and
     `I → R` spontaneous at `recovery_rate`. Both rate names must resolve
@@ -32,7 +40,7 @@ def _custom_sir_request(parameters: dict) -> dict:
                 {"source": "I", "target": "R", "kind": "spontaneous", "params": "recovery_rate"},
             ],
         },
-        "population": {"name": "United_States"},
+        "population": dict(_HOMOGENEOUS_POPULATION),
         "simulation": {
             "start_date": "2024-01-01",
             "end_date": "2024-01-31",
@@ -44,13 +52,15 @@ def _custom_sir_request(parameters: dict) -> dict:
 
 
 def test_calculated_param_simple_scalar(client):
-    """A calculated scalar resolves to the expected product of source scalars."""
+    """A calculated scalar resolves to the expected product of source scalars.
+
+    Transmission rate beta is calculated from R0 and recovery_rate via the canonical R0 -> beta conversion.
+    """
     request = _custom_sir_request(
         {
-            "p_h": 0.05,
-            "gamma": 0.2,
-            "transmission_rate": 0.3,
-            "recovery_rate": "(1 - p_h) * gamma",
+            "R0": 2.5,
+            "recovery_rate": 0.1,
+            "transmission_rate": "R0 * recovery_rate",
         }
     )
     response = client.post("/api/v1/simulations", json=request)
@@ -58,40 +68,58 @@ def test_calculated_param_simple_scalar(client):
     assert response.json()["status"] == "completed"
 
     params = response.json()["results"]["parameters"]
-    series = next(iter(params["data"]["recovery_rate"].values()))
-    assert series[0] == pytest.approx(0.95 * 0.2, abs=1e-9)
+    series = next(iter(params["data"]["transmission_rate"].values()))
+    assert series[0] == pytest.approx(2.5 * 0.1, abs=1e-9)
 
 
 def test_calculated_param_chained(client):
     """A calculated parameter that depends on another calculated parameter
-    is evaluated in topological order, regardless of dict insertion order."""
+    is evaluated in topological order, regardless of dict insertion order.
+
+    Two-step chain that mirrors how a user might supply `R0` and
+    `infectious_period` and derive both rates:
+    - `recovery_rate = 1 / infectious_period` (first calc-param), then
+    - `transmission_rate = R0 * recovery_rate` (second calc-param, referencing the first).
+
+    The dict intentionally lists `transmission_rate` before its dependency
+    `recovery_rate` to prove the topological sort doesn't rely on dict order.
+    """
     request = _custom_sir_request(
         {
-            # `recovery_rate` references `intermediate`, which is itself an
-            # expression. We list them in reverse order to prove the topo sort
-            # doesn't rely on dict order.
-            "recovery_rate": "intermediate * 2",
-            "intermediate": "gamma * (1 - p_h)",
-            "transmission_rate": 0.3,
-            "p_h": 0.1,
-            "gamma": 0.2,
+            "transmission_rate": "R0 * recovery_rate",
+            "recovery_rate": "1 / infectious_period",
+            "R0": 2.5,
+            "infectious_period": 10.0,
         }
     )
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 200, response.text
     params = response.json()["results"]["parameters"]
-    series = next(iter(params["data"]["recovery_rate"].values()))
-    assert series[0] == pytest.approx(0.2 * 0.9 * 2, abs=1e-9)
+
+    recovery = next(iter(params["data"]["recovery_rate"].values()))
+    beta = next(iter(params["data"]["transmission_rate"].values()))
+    assert recovery[0] == pytest.approx(0.1, abs=1e-9)
+    assert beta[0] == pytest.approx(2.5 * 0.1, abs=1e-9)
 
 
 def test_calculated_param_with_age_varying_source(client):
-    """A list-valued source flows through the expression as age-varying."""
+    """A list-valued source flows through the expression as age-varying.
+
+    Age-varying relative susceptibility: kids and elderly often have
+    different per-contact infection risk than the general adult population
+    (kids are less susceptible to many flu strains; elderly tend to be more).
+    The user supplies `relative_susceptibility` as a length-N list and
+    `transmission_rate = base_transmission * relative_susceptibility` becomes
+    age-varying via numpy broadcasting.
+    """
+    susceptibilities = [0.5, 0.7, 1.0, 1.0, 1.2]
+    base_transmission = 0.3
     request = _custom_sir_request(
         {
-            "p_h": [0.05, 0.10, 0.15, 0.20, 0.25],
-            "gamma": 0.2,
-            "transmission_rate": 0.3,
-            "recovery_rate": "(1 - p_h) * gamma",
+            "base_transmission": base_transmission,
+            "relative_susceptibility": susceptibilities,
+            "transmission_rate": "base_transmission * relative_susceptibility",
+            "recovery_rate": 0.1,
         }
     )
     request["population"] = {
@@ -103,21 +131,17 @@ def test_calculated_param_with_age_varying_source(client):
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 200, response.text
 
-    rec = response.json()["results"]["parameters"]["data"]["recovery_rate"]
-    expected = [0.95 * 0.2, 0.90 * 0.2, 0.85 * 0.2, 0.80 * 0.2, 0.75 * 0.2]
-    age_keys = [k for k in rec if k != "total"]
-    # age groups in `rec` follow the resolved population order, which matches
-    # _AGE_GROUP_MAPPING_5's insertion order.
-    for ag, want in zip(age_keys, expected):
-        assert rec[ag][0] == pytest.approx(want, abs=1e-9)
+    beta = response.json()["results"]["parameters"]["data"]["transmission_rate"]
+    age_keys = [k for k in beta if k != "total"]
+    for ag, susceptibility in zip(age_keys, susceptibilities):
+        assert beta[ag][0] == pytest.approx(base_transmission * susceptibility, abs=1e-9)
 
 
 def test_calculated_param_composes_with_balcan(client):
     """A balcan transform on a scalar source produces a time-varying
     calculated parameter via numpy broadcasting.
 
-    Seasonality goes on R0 (the natural knob), and
-    `transmission_rate = R0 * recovery_rate` is the calc-param that picks it up. 
+    Seasonality goes on R0, and `transmission_rate = R0 * recovery_rate` is the calc-param that picks it up.
     """
     request = _custom_sir_request(
         {
@@ -150,17 +174,19 @@ def test_calculated_param_composes_with_balcan(client):
 def test_calculated_param_composes_with_age_varying_plus_balcan(client):
     """Source is age-varying AND time-transformed; calculated output is (T, N).
 
-    `transmission_rate = R0 * recovery_rate * age_susceptibility` carries an
-    age-varying factor (`age_susceptibility`) AND a seasonal one (balcan on
-    `R0`). The resulting transmission_rate should differ across age groups
-    and vary over time within each group.
+    `transmission_rate = base_transmission * relative_susceptibility` carries
+    an age-varying factor (`relative_susceptibility`) AND a seasonal one
+    (balcan on `base_transmission`). The resulting transmission_rate is
+    age-varying and time-varying. No eigenvalue involved: `base_transmission`
+    is a direct per-contact rate, not an R0-to-beta conversion.
     """
+    susceptibilities = [0.5, 0.7, 1.0, 1.0, 1.2]
     request = _custom_sir_request(
         {
-            "R0": 2.5,
+            "base_transmission": 0.3,
+            "relative_susceptibility": susceptibilities,
+            "transmission_rate": "base_transmission * relative_susceptibility",
             "recovery_rate": 0.1,
-            "age_susceptibility": [0.6, 0.8, 1.0, 1.2, 1.4],
-            "transmission_rate": "R0 * recovery_rate * age_susceptibility",
         }
     )
     request["population"] = {
@@ -168,9 +194,12 @@ def test_calculated_param_composes_with_age_varying_plus_balcan(client):
         "contacts_source": "prem_2021",
         "age_group_mapping": _AGE_GROUP_MAPPING_5,
     }
+    # Extend the horizon so the balcan curve spans its full max-to-min range
+    # (max_date 2024-01-15 to min_date 2024-07-15).
+    request["simulation"]["end_date"] = "2024-07-31"
     request["parameter_transforms"] = [
         {
-            "target_parameter": "R0",
+            "target_parameter": "base_transmission",
             "method": "balcan",
             "max_date": "2024-01-15",
             "min_date": "2024-07-15",
@@ -184,13 +213,17 @@ def test_calculated_param_composes_with_age_varying_plus_balcan(client):
 
     beta = response.json()["results"]["parameters"]["data"]["transmission_rate"]
     age_keys = [k for k in beta if k != "total"]
-    # Different age groups have different age_susceptibility factors, so the
-    # age groups carry distinct transmission_rate series.
-    assert beta[age_keys[0]][0] != pytest.approx(beta[age_keys[-1]][0], abs=1e-6)
-    # Each series is time-varying.
+    # Different age groups carry distinct transmission_rate series, in the
+    # same ratio as their `relative_susceptibility`.
+    base_first = beta[age_keys[0]][0]
+    for ag, susceptibility in zip(age_keys, susceptibilities):
+        ratio = beta[ag][0] / base_first
+        assert ratio == pytest.approx(susceptibility / susceptibilities[0], abs=1e-9)
+    # Each series is time-varying: balcan modulates `base_transmission` between
+    # max_value=1.0 and min_value=0.5, so max/min approaches 2x.
     for ag in age_keys:
         s = beta[ag]
-        assert max(s) - min(s) > 1e-3
+        assert max(s) / min(s) > 1.5
 
 
 def test_calculated_param_undefined_name(client):
@@ -198,7 +231,7 @@ def test_calculated_param_undefined_name(client):
     request = _custom_sir_request(
         {
             "transmission_rate": 0.3,
-            "recovery_rate": "(1 - p_h) * gamma",  # neither p_h nor gamma defined
+            "recovery_rate": "0.15 * epsilon",  # epsilon not defined
         }
     )
     response = client.post("/api/v1/simulations", json=request)
@@ -269,36 +302,30 @@ def test_calculated_param_syntax_error(client):
     """Unparseable expressions surface as 422 with a clear message."""
     request = _custom_sir_request(
         {
-            "p_h": 0.1,
-            "gamma": 0.2,
-            "transmission_rate": 0.3,
-            "recovery_rate": "((1 - p_h",  # unbalanced parens
+            "R0": 2.5,
+            "recovery_rate": 0.1,
+            "transmission_rate": "((R0 * recovery_rate",  # unbalanced parentheses
         }
     )
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 422
-    assert "recovery_rate" in response.json()["detail"]
+    assert "transmission_rate" in response.json()["detail"]
 
 
 def test_calculated_param_transform_target_accepted(client):
-    """A `parameter_transforms` entry targeting a calculated name now applies in the calc-pass.
-
-    Previously the API rejected this with 422; the pipeline now defers calc-targeting
-    transforms until after expression evaluation so they layer on top of the evaluated
-    value. The source value also propagates naturally (a transform on the source
-    flows through the expression), but this test exercises the new calc-pass path.
+    """A `parameter_transforms` entry targeting a calculated parameter is accepted.
+    (Previously the API rejected this with 422, but we changed to allow it.)
     """
     request = _custom_sir_request(
         {
-            "p_h": 0.1,
-            "gamma": 0.2,
-            "transmission_rate": 0.3,
-            "recovery_rate": "(1 - p_h) * gamma",
+            "R0": 2.5,
+            "recovery_rate": 0.1,
+            "transmission_rate": "R0 * recovery_rate",
         }
     )
     request["parameter_transforms"] = [
         {
-            "target_parameter": "recovery_rate",
+            "target_parameter": "transmission_rate",  # Apply scaling on the calculated parameter 'transmission_rate'
             "method": "scale",
             "start_date": "2024-01-05",
             "end_date": "2024-01-10",
@@ -309,16 +336,21 @@ def test_calculated_param_transform_target_accepted(client):
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 200, response.text
     params = response.json()["results"]["parameters"]
-    assert "recovery_rate" in params["data"]
-    # Inside the scale window (2024-01-05..2024-01-10), recovery_rate should be
-    # `(1 - p_h) * gamma * 0.5` = 0.09; outside, it should be 0.18.
+    assert "transmission_rate" in params["data"]
+
+    # Scaling should be applied only during the specified window
     dates = params["dates"]
-    first_age_group = next(iter(params["data"]["recovery_rate"]))
-    series = params["data"]["recovery_rate"][first_age_group]
+    first_age_group = next(iter(params["data"]["transmission_rate"]))
+    series = params["data"]["transmission_rate"][first_age_group]
     in_window = [v for d, v in zip(dates, series) if "2024-01-05" <= d <= "2024-01-10"]
     out_of_window = [v for d, v in zip(dates, series) if d < "2024-01-05" or d > "2024-01-10"]
-    assert in_window == pytest.approx([0.09] * len(in_window), abs=1e-9)
-    assert out_of_window == pytest.approx([0.18] * len(out_of_window), abs=1e-9)
+
+    assert in_window == pytest.approx(
+        [0.125] * len(in_window), abs=1e-9
+    )  # R0 * recovery_rate * 0.5
+    assert out_of_window == pytest.approx(
+        [0.25] * len(out_of_window), abs=1e-9
+    )  # R0 * recovery_rate
 
 
 def test_calculated_param_not_echoed_in_metadata(client):
@@ -326,10 +358,9 @@ def test_calculated_param_not_echoed_in_metadata(client):
     only in the request and surface via `results.parameters` when requested."""
     request = _custom_sir_request(
         {
-            "p_h": 0.1,
-            "gamma": 0.2,
-            "transmission_rate": 0.3,
-            "recovery_rate": "(1 - p_h) * gamma",
+            "R0": 2.5,
+            "recovery_rate": 0.1,
+            "transmission_rate": "R0 * recovery_rate",
         }
     )
     response = client.post("/api/v1/simulations", json=request)
@@ -337,7 +368,7 @@ def test_calculated_param_not_echoed_in_metadata(client):
     metadata = response.json()["metadata"]
     assert "calculated_parameters" not in metadata
     # The evaluated value is still observable via include_parameters.
-    assert "recovery_rate" in response.json()["results"]["parameters"]["data"]
+    assert "transmission_rate" in response.json()["results"]["parameters"]["data"]
 
 
 def test_calculated_param_uses_reserved_eigenvalue(client):
@@ -355,6 +386,9 @@ def test_calculated_param_uses_reserved_eigenvalue(client):
             "transmission_rate": "R0 * gamma / CONTACT_MATRIX_EIGENVALUE_ALL",
         }
     )
+
+    # Use United_States population
+    request["population"] = {"name": "United_States"}
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 200, response.text
 
@@ -494,7 +528,7 @@ def test_calculated_param_reserved_name_collision_rejected(client):
         {
             "transmission_rate": 0.3,
             "recovery_rate": 0.1,
-            "CONTACT_MATRIX_EIGENVALUE_ALL": 5.0,
+            "CONTACT_MATRIX_EIGENVALUE_ALL": 5.0,  # This would collide with reserved parameter
         }
     )
     response = client.post("/api/v1/simulations", json=request)
@@ -564,9 +598,9 @@ def test_calculated_param_drives_simulation_equivalently_to_scalar(client):
             },
         }
 
-    # Precalculated
+    # Precalculated: a=0.1
     scalar = client.post("/api/v1/simulations", json=make_request({"a": 0.1})).json()
-    # Calculated from expression
+    # Calculated from expression: a = 2 * 0.5 = 0.1
     calc = client.post("/api/v1/simulations", json=make_request({"b": 0.05, "a": "2 * b"})).json()
     assert scalar["status"] == "completed", scalar
     assert calc["status"] == "completed", calc
@@ -692,9 +726,7 @@ def test_sir_period_inputs_match_explicit_rate(client):
     """Period-style and rate-style inputs produce identical trajectories with the same seed."""
     period_resp = client.post(
         "/api/v1/simulations",
-        json=_preset_request(
-            "SIR", {"infectious_period": 7.0, "transmission_rate": 0.3}
-        ),
+        json=_preset_request("SIR", {"infectious_period": 7.0, "transmission_rate": 0.3}),
     )
     rate_resp = client.post(
         "/api/v1/simulations",
@@ -743,24 +775,48 @@ def test_custom_model_no_implicit_period_conversion(client):
     """Custom models opt out of period-to-rate conversion.
 
     Even with `infectious_period` supplied, no `recovery_rate` calc-param
-    is injected: the conversion is preset-scoped. `infectious_period` is
-    just an unused parameter name; nothing implicit happens.
+    is injected: the conversion is preset-scoped.
+    `infectious_period` is just an unused parameter name; nothing implicit happens.
     """
     request = _custom_sir_request(
         {
-            "infectious_period": 7.0,
+            "infectious_period": 7.0,  # This is would not be converted to recovery rate in a custom model. Remains unused.
             "transmission_rate": 0.3,
-            "recovery_rate": 0.1,  # supplied explicitly; conversion would otherwise drive this
+            "recovery_rate": 0.1,  # supplied explicitly
         }
     )
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 200, response.text
     params = response.json()["results"]["parameters"]["data"]
-    # User scalar wins; the conversion is opted out so `recovery_rate` stays at 0.1.
+
+    # User scalar wins; the conversion is opted out in custom model, so `recovery_rate` stays at 0.1.
     series = next(iter(params["recovery_rate"].values()))
     assert series == pytest.approx([0.1] * len(series), abs=1e-12)
+
     # `infectious_period` is present but unused: NOT consumed by any conversion.
     assert "infectious_period" in params
+
+
+def test_custom_model_explicit_period_to_rate_calc_param(client):
+    """Custom models can opt INTO the period-to-rate conversion explicitly.
+
+    Complement of `test_custom_model_no_implicit_period_conversion`: the
+    preset-scoped resolver doesn't fire for custom models, but a user can
+    write the same expression as a calc-param. The general calc-param
+    machinery evaluates it regardless of preset.
+    """
+    request = _custom_sir_request(
+        {
+            "infectious_period": 7.0,
+            "transmission_rate": 0.3,
+            "recovery_rate": "1 / infectious_period",  # explicit user calc-param
+        }
+    )
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200, response.text
+    params = response.json()["results"]["parameters"]["data"]
+    series = next(iter(params["recovery_rate"].values()))
+    assert series == pytest.approx([1 / 7.0] * len(series), abs=1e-12)
 
 
 def test_source_override_propagates_through_calc_param(client):
@@ -768,6 +824,7 @@ def test_source_override_propagates_through_calc_param(client):
     request = _custom_sir_request(
         {"a": 1.0, "b": "a * 2", "transmission_rate": 0.3, "recovery_rate": 0.1}
     )
+    # Override `a` to 5.0 during 2024-01-10 to 2024-01-20. During that window, `b` should be 10.0; outside it should be 2.0.
     request["parameter_transforms"] = [
         {
             "target_parameter": "a",
@@ -781,10 +838,13 @@ def test_source_override_propagates_through_calc_param(client):
     assert response.status_code == 200, response.text
     params = response.json()["results"]["parameters"]
     dates = params["dates"]
+
+    # Extract the value of `b` over time, which should reflect the override on `a` during the specified window.
     series = next(iter(params["data"]["b"].values()))
+
     in_window = [v for d, v in zip(dates, series) if "2024-01-10" <= d <= "2024-01-20"]
     out_of_window = [v for d, v in zip(dates, series) if d < "2024-01-10" or d > "2024-01-20"]
-    # Before Step 0b, `b` stayed at 2.0 everywhere because override wrote to a
-    # sibling `model.overrides` dict that calc-param eval never read.
+
+    # `b` is 10.0 during the window (5.0 * 2), and 2.0 outside the window (1.0 * 2)
     assert in_window == pytest.approx([10.0] * len(in_window), abs=1e-9)
     assert out_of_window == pytest.approx([2.0] * len(out_of_window), abs=1e-9)

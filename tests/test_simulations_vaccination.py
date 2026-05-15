@@ -77,7 +77,7 @@ def test_vaccination_custom_model_runs(client):
 
 def test_vaccination_missing_source_target_on_custom_model(client):
     request = _custom_vax_model_request()
-    request["vaccination"]["source_compartment"] = None
+    request["vaccination"]["source_compartment"] = None # Missing source
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 422
     detail = response.json()["detail"]
@@ -86,7 +86,7 @@ def test_vaccination_missing_source_target_on_custom_model(client):
 
 def test_vaccination_invalid_source_compartment(client):
     request = _custom_vax_model_request()
-    request["vaccination"]["source_compartment"] = "ghost"
+    request["vaccination"]["source_compartment"] = "ghost" # Nonexistent compartment
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 422
     detail = response.json()["detail"]
@@ -96,7 +96,7 @@ def test_vaccination_invalid_source_compartment(client):
 
 def test_vaccination_source_equals_target(client):
     request = _custom_vax_model_request()
-    request["vaccination"]["target_compartment"] = "S"
+    request["vaccination"]["target_compartment"] = "S" # S -> S is not allowed
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 422
     detail = response.json()["detail"]
@@ -105,7 +105,7 @@ def test_vaccination_source_equals_target(client):
 
 def test_vaccination_invalid_age_group(client):
     request = _custom_vax_model_request()
-    request["vaccination"]["campaigns"][0]["target_age_groups"] = ["nonexistent"]
+    request["vaccination"]["campaigns"][0]["target_age_groups"] = ["nonexistent"] # Target age group does not exist in population
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 422
     assert "nonexistent" in response.json()["detail"]
@@ -124,7 +124,7 @@ def test_vaccination_duplicate_target_age_groups(client):
 
 def test_vaccination_invalid_window(client):
     request = _custom_vax_model_request()
-    request["vaccination"]["campaigns"][0]["end_date"] = "2024-01-01"
+    request["vaccination"]["campaigns"][0]["end_date"] = "2024-01-01" # End date before simulation start date
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 422
 

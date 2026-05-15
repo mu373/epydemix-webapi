@@ -45,7 +45,7 @@ def test_schedule_zero_outside_window():
 
 def test_rate_fn_inactive_campaign_returns_zero():
     """When the schedule is zero at step `t`, the rate function returns all zeros."""
-    schedule = np.zeros(10, dtype=float)
+    schedule = np.zeros(10, dtype=float) # Zero doses across the window
     campaign = ResolvedCampaign(daily_doses_at_t=schedule, target_age_indices=np.array([0]))
     rate_fn = make_vaccination_rate_fn([campaign], n_groups=1)
     rate = rate_fn(
@@ -60,6 +60,7 @@ def test_rate_fn_with_empty_source_returns_zero():
     schedule = np.array([100.0, 100.0])
     campaign = ResolvedCampaign(daily_doses_at_t=schedule, target_age_indices=np.array([0]))
     rate_fn = make_vaccination_rate_fn([campaign], n_groups=1)
+    # Population is zero in the source compartment, which could lead to division by zero if not handled properly.
     rate = rate_fn(
         {"source": "X"},
         {"t": 0, "pop": np.array([[0.0], [0.0]]), "comp_indices": {"X": 0, "X_vax": 1}},
@@ -103,12 +104,15 @@ def test_flat_count_delivers_expected_doses_per_day():
         [traj.transitions["X_to_X_vax_total"] for traj in results.trajectories]
     )
     mean_per_step = per_step.mean(axis=0)
-    # Inside the window the mean should land near `daily_doses`. With Nsim=50
-    # and per-step std ~ sqrt(1000) ~ 32, the std of the mean is ~ 4.5,
-    # so a 15% tolerance gives plenty of headroom.
+
+    # Inside the window, the mean should land near `daily_doses`. With Nsim=50
+    # and 1M source, per-step SE on the mean is ~4.47 (theoretical), and the
+    # empirical worst-case rel error across many seeds is ~1.5%. rel=0.03
+    # leaves ~2x headroom while still catching regressions.
     in_window = (sim_dates >= np.datetime64(c_start)) & (sim_dates <= np.datetime64(c_end))
-    assert mean_per_step[in_window] == pytest.approx(daily_doses, rel=0.15)
-    # Outside the window: hard zero (schedule is exactly 0, no stochasticity).
+    assert mean_per_step[in_window] == pytest.approx(daily_doses, rel=0.03)
+
+    # Outside the window should be hard zero (schedule is exactly 0, no stochasticity).
     assert np.all(per_step[:, ~in_window] == 0)
 
 
@@ -141,6 +145,7 @@ def test_dose_cap_when_source_depleted():
     # Total vaccinations cannot exceed the finite source pool. One-sided hard
     # invariant, not an approximate equality.
     assert np.all(totals <= initial_X)
+
     # With 100k/day on a 31-day window over 1000 individuals, draining is
     # essentially deterministic: the mean lands on initial_X within 1% noise.
     assert totals.mean() == pytest.approx(initial_X, rel=0.01)
@@ -202,14 +207,16 @@ def test_two_groups_proportional_split():
         initial_conditions_dict=initial,
         rng=np.random.default_rng(0),
     )
+
+    # Calculate cumulative transitions per group across the window.
     per_group_totals = {
         "A": np.array([traj.transitions["X_to_X_vax_A"].sum() for traj in results.trajectories]),
         "B": np.array([traj.transitions["X_to_X_vax_B"].sum() for traj in results.trajectories]),
     }
     total_mean = per_group_totals["A"].mean() + per_group_totals["B"].mean()
+
+    # Group A should receive ~60% of the doses, Group B ~40%, with some noise.
     a_share = per_group_totals["A"].mean() / total_mean
-    # Expected 0.6 / 0.4 with shrinkage of <1% (source ratio drift across the
-    # 11-day window: ~1100 doses out of 60000 in group A vs 40000 in group B).
     assert a_share == pytest.approx(0.6, abs=0.02)
 
 
@@ -219,6 +226,7 @@ def test_target_subset_age_groups():
     model, initial = _two_group_model(nk)
     sim_dates = compute_simulation_dates("2025-01-01", "2025-01-31", dt=1.0)
     schedule = build_flat_count_schedule(sim_dates, 1.0, "2025-01-05", "2025-01-15", 500.0)
+
     # Target only group B (index 1).
     _wire_vaccination(model, [(schedule, np.array([1]))], n_groups=2)
 
@@ -230,6 +238,7 @@ def test_target_subset_age_groups():
         initial_conditions_dict=initial,
         rng=np.random.default_rng(1),
     )
+
     # Group A receives no doses; Group B receives ~500/day for 11 days.
     a_totals = np.array([traj.transitions["X_to_X_vax_A"].sum() for traj in results.trajectories])
     b_totals = np.array([traj.transitions["X_to_X_vax_B"].sum() for traj in results.trajectories])
@@ -278,11 +287,22 @@ def test_two_overlapping_campaigns_rates_add():
 
 
 def test_depletion_shoulder_matches_discrete_theory():
-    """Per-step transitions follow `S(t) * (1 - exp(-c/S(t)))` through the depletion shoulder.
+    """Per-step transitions match the theoretical value of discrete-time depletion.
 
-    Single group, small enough source that depletion bites partway through.
-    With Nsim=300 the per-step mean tracks the iterated deterministic update
-    tightly enough to discriminate it from the naive `daily_doses * dt` cap.
+    The rate function returns a per-individual rate `r(t) = daily_doses / S(t)`,
+    which is converted to a per-step survival-corrected probability:
+        p(t) = 1 - exp(-r(t) * dt) = 1 - exp(-c / S(t)),
+        c = daily_doses * dt
+
+    Expected per-step transitions:
+
+        E[ΔS(t)] = S(t) * p(t) = S(t) * (1 - exp(-c / S(t)))
+
+    Thus:
+
+        S(t+1) = S(t) - E[ΔS(t)] = S(t) * exp(-c / S(t))
+
+    which produces the smooth curve as population depletes.
     """
     N = 10_000.0
     daily_doses = 5_000.0
@@ -307,10 +327,11 @@ def test_depletion_shoulder_matches_discrete_theory():
     )
     mean_per_step = per_step.mean(axis=0)
 
-    # Theoretical deterministic iteration of S(t+1) = S(t) * exp(-c/S(t)).
+    # Calculate theoretical expected transitions with depletion
+    # S(t+1) = S(t) * exp(-c/S(t)).
     c = daily_doses * dt
     s = N
-    expected = np.empty(horizon_days, dtype=np.float64)
+    expected = np.empty(horizon_days, dtype=np.float64) # Support array for expected per-step transitions.
     for k in range(horizon_days):
         if s <= 0:
             expected[k] = 0.0
@@ -320,9 +341,7 @@ def test_depletion_shoulder_matches_discrete_theory():
         expected[k] = delta
         s -= delta
 
-    # Compare each step. Per-step std ~ sqrt(N * p * (1-p)) <= ~50; SE on mean
-    # over 300 sims is ~3. Pick 5% relative tolerance and skip the deep tail
-    # where the expected mean drops below 1 and stochastic noise dominates.
+    # Compare each step from simulation mean to the theoretical expected value.
     for k in range(horizon_days):
         if expected[k] < 1:
             continue

@@ -115,26 +115,62 @@ def test_v_seihr_VE_zero(client):
 
 
 def test_v_seihr_waning_off_by_default(client):
-    """Without `immunity_duration`, waning_rate stays at the scalar default 0.0."""
-    request = _baseline_request()
+    """Without `immunity_duration`, waning_rate stays at 0.0 and no R -> S transitions fire.
+
+    Locks down both the parameter value AND the simulation consequence: with the
+    waning rate at zero the stochastic draw on `Recovered -> Susceptible`
+    (and its vaccinated twin) can never produce a non-zero transition count.
+    """
+    request = _baseline_request() # No parameters for waning, so the preset default of 0.0 applies.
     request["output"] = {"include_parameters": True}
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 200
-    params = response.json()["results"]["parameters"]["data"]
-    series = next(iter(params["waning_rate"].values()))
+    body = response.json()["results"]
+
+    # Parameter value: waning_rate is exactly 0.0 everywhere.
+    series = next(iter(body["parameters"]["data"]["waning_rate"].values()))
     assert series == pytest.approx([0.0] * len(series), abs=1e-12)
+
+    # Simulation: zero cumulative R -> S transitions in the median trajectory,
+    # across both layers and every age group. 
+    totals = body["summary"]["totals"]
+    for name in ("Recovered_to_Susceptible", "Recovered_vax_to_Susceptible_vax"):
+        for age_data in totals[name].values():
+            assert age_data["quantiles"]["0.5"] == 0.0, (
+                f"{name} median = {age_data['quantiles']['0.5']}, expected 0"
+            )
 
 
 def test_v_seihr_waning_enabled_via_immunity_duration(client):
-    """Passing immunity_duration injects the calc-param `waning_rate = 1 / immunity_duration`."""
+    """`immunity_duration` injects `waning_rate = 1 / immunity_duration` and R -> S fires.
+
+    Complement of `test_v_seihr_waning_off_by_default`: with waning on, the
+    cumulative `Recovered -> Susceptible` count must be positive at the
+    median quantile (some recovered individuals re-enter the susceptible
+    pool over the simulation horizon).
+    """
     request = _baseline_request()
-    request["model"]["parameters"]["immunity_duration"] = 365.0
+    request["model"]["parameters"]["immunity_duration"] = 30.0  # Set waning on via immunity_duration
+    request["initial_conditions"] = {
+        "method": "absolute",
+        "compartments": {
+            "Recovered": [10_000, 10_000, 10_000, 10_000, 10_000],
+        },
+    }
     request["output"] = {"include_parameters": True}
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 200, response.text
-    params = response.json()["results"]["parameters"]["data"]
-    series = next(iter(params["waning_rate"].values()))
-    assert series == pytest.approx([1 / 365.0] * len(series), abs=1e-9)
+    body = response.json()["results"]
+
+    # Parameter value: waning_rate is 1/30 everywhere.
+    series = next(iter(body["parameters"]["data"]["waning_rate"].values()))
+    assert series == pytest.approx([1 / 30.0] * len(series), abs=1e-9)
+
+    # Simulation: R -> S median total is positive
+    # (seeded recovered individuals re-enter the susceptible pool).
+    totals = body["summary"]["totals"]["Recovered_to_Susceptible"]
+    medians = [age_data["quantiles"]["0.5"] for age_data in totals.values()]
+    assert sum(medians) > 0, f"Recovered_to_Susceptible medians = {medians}"
 
 
 def test_v_seihr_with_vaccination_campaign(client):

@@ -71,6 +71,7 @@ def _custom_vax_model_request(**overrides):
 
 
 def test_vaccination_custom_model_runs(client):
+    """Custom model with explicit source/target wires the vaccination flow end-to-end."""
     response = client.post("/api/v1/simulations", json=_custom_vax_model_request())
     assert response.status_code == 200, response.text
     data = response.json()
@@ -78,8 +79,9 @@ def test_vaccination_custom_model_runs(client):
 
 
 def test_vaccination_missing_source_target_on_custom_model(client):
+    """Custom models without preset defaults must supply both source and target compartments."""
     request = _custom_vax_model_request()
-    request["vaccination"]["source_compartment"] = None # Missing source
+    request["vaccination"]["source_compartment"] = None  # Missing source
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 422
     detail = response.json()["detail"]
@@ -87,8 +89,9 @@ def test_vaccination_missing_source_target_on_custom_model(client):
 
 
 def test_vaccination_invalid_source_compartment(client):
+    """Source compartment must exist in the model; otherwise 422 names it."""
     request = _custom_vax_model_request()
-    request["vaccination"]["source_compartment"] = "ghost" # Nonexistent compartment
+    request["vaccination"]["source_compartment"] = "ghost"  # Nonexistent compartment
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 422
     detail = response.json()["detail"]
@@ -97,8 +100,9 @@ def test_vaccination_invalid_source_compartment(client):
 
 
 def test_vaccination_source_equals_target(client):
+    """A self-loop S -> S is a configuration error: source and target must be distinct."""
     request = _custom_vax_model_request()
-    request["vaccination"]["target_compartment"] = "S" # S -> S is not allowed
+    request["vaccination"]["target_compartment"] = "S"  # S -> S is not allowed
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 422
     detail = response.json()["detail"]
@@ -106,14 +110,16 @@ def test_vaccination_source_equals_target(client):
 
 
 def test_vaccination_invalid_age_group(client):
+    """Each label in `target_age_groups` must match an age group on the resolved population."""
     request = _custom_vax_model_request()
-    request["vaccination"]["campaigns"][0]["target_age_groups"] = ["nonexistent"] # Target age group does not exist in population
+    request["vaccination"]["campaigns"][0]["target_age_groups"] = ["nonexistent"]
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 422
     assert "nonexistent" in response.json()["detail"]
 
 
 def test_vaccination_duplicate_target_age_groups(client):
+    """`target_age_groups` must contain unique labels; duplicates are a 422."""
     request = _custom_vax_model_request()
     request["vaccination"]["campaigns"][0]["target_age_groups"] = ["all", "all"]
     response = client.post("/api/v1/simulations", json=request)
@@ -125,13 +131,15 @@ def test_vaccination_duplicate_target_age_groups(client):
 
 
 def test_vaccination_invalid_window(client):
+    """A campaign with `end_date < start_date` is rejected at schema validation."""
     request = _custom_vax_model_request()
-    request["vaccination"]["campaigns"][0]["end_date"] = "2024-01-01" # End date before simulation start date
+    request["vaccination"]["campaigns"][0]["end_date"] = "2024-01-01"
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 422
 
 
 def test_vaccination_empty_campaigns(client):
+    """`vaccination` with an empty `campaigns` list is a 422 (block is present but vacuous)."""
     request = _custom_vax_model_request()
     request["vaccination"]["campaigns"] = []
     response = client.post("/api/v1/simulations", json=request)
@@ -160,6 +168,7 @@ def test_vaccination_invalid_rollout_type(client):
 
 
 def test_vaccination_metadata_echoed(client):
+    """The resolved vaccination block is echoed back in `metadata.vaccination`."""
     response = client.post("/api/v1/simulations", json=_custom_vax_model_request())
     assert response.status_code == 200
     metadata = response.json()["metadata"]
@@ -176,14 +185,15 @@ def test_vaccination_dose_count_close_to_expected(client):
     assert response.status_code == 200, response.text
     data = response.json()
     transitions = data["results"]["transitions"]["data"]["S_to_S_vax"]
+
     # Find a quantile series (median) over the campaign window.
     quantile_data = next(iter(transitions.values()))
     median_key = "median" if "median" in quantile_data else "0.5"
     series = quantile_data[median_key]
     dates = data["results"]["transitions"]["dates"]
     in_window = [v for d, v in zip(dates, series) if "2025-01-05" <= d <= "2025-01-15"]
-    # 11 days, 10000 daily doses, dt=1.0; tolerate 50% noise across the median
-    # (small Nsim=20, single-sim quantile is noisier than the mean).
+
+    # For 11 days, we expect a total of 10000 * 11 daily doses
     expected = 10_000 * 11
     cumulative = sum(in_window)
-    assert cumulative == pytest.approx(expected, rel=0.5)
+    assert cumulative == pytest.approx(expected, rel=0.05)

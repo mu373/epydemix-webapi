@@ -24,5 +24,6 @@ You can list all available presets:
 | [SIR](./sir.mdx) | S, I, R | You want the simplest possible epidemic model with permanent immunity. |
 | [SEIR](./seir.mdx) | S, E, I, R | You need a latent (exposed-but-not-yet-infectious) period before infectiousness. |
 | [SIS](./sis.mdx) | S, I | Recovered individuals return to the susceptible pool with no lasting immunity (e.g. many bacterial infections). |
+| [V-SEIHR](./v-seihr.mdx) | 10 (S/E/I/H/R × unvaccinated/vaccinated) | You want SEIR with explicit hospitalization, a vaccinated parallel layer, and a vaccination rollout via [the `vaccination` block](../../vaccination/overview.mdx). |
 
 If none of these fit, you can declare compartments and transitions yourself. See [Custom Models](../custom-models.mdx).

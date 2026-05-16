@@ -1,0 +1,59 @@
+---
+sidebar_position: 1
+---
+
+import EndpointSelector from '@site/src/components/EndpointSelector';
+
+# Overview
+
+<EndpointSelector />
+
+Vaccination is modeled as a **flow between two compartments**. At each step, a calendar-driven number of individuals leave a "donor" pool (typically `Susceptible`) and enter a vaccinated counterpart (typically `Susceptible_vax`). The effect from this vaccination can then be modeled by reduced parameter values, for example in susceptibility and severity.
+
+The [`V-SEIHR` preset](../model/presets/v-seihr.mdx) is one example of a model that incorporates vaccination: it provides a vaccinated parallel layer and `VE_S` / `VE_H` efficacy parameters out of the box. See [Campaigns](./campaigns.mdx) for the request shape.
+
+## Dose allocation
+
+Doses are split across the targeted age groups proportional to the **current source-compartment population in each group** at every step. For example, if a campaign targets two age groups with 4,000 and 6,000 susceptibles at $t=1$ and rolls out 1,000 doses per day, the first group gets 400 doses and the second gets 600.
+
+The split is recomputed at every step against the **live** source population, which shrinks not only from vaccination itself but also from parallel transitions in the surrounding model (e.g. `S → E` in V-SEIHR as infections accumulate, or waning that swaps between layers). Once a group's donor pool reaches zero, it simply receives no doses (a binomial draw on an empty pool returns zero). Its share of the budget is reallocated to the **other targeted groups** in the same campaign, since they share the same per-individual rate $d_c / \sum_j S_j$: if group A is empty and group B has 6,000, a 1,000-dose-per-day campaign targeting `[A, B]` will deliver all 1,000 to B (in expectation). When the targeted pool as a whole drops so fast that $\sum_j S_j(t)$ falls below $d_c\,dt$, the rate saturates the binomial cap and the per-step transitions actually delivered fall short of `daily_doses`.
+
+If **every** targeted group in a campaign is exhausted, the campaign's per-step budget is not delivered at that step. Campaigns are independent: a depleted group in one campaign never bumps another campaign's rate.
+
+Let $c$ index campaigns and $i$, $j$ index age groups. Campaign $c$ contributes a single per-individual rate to all of its targeted groups:
+
+$$
+r_c(t) = \frac{d_c}{\sum_{j \in \mathcal{A}_c} S_j(t)} \quad \text{for } t \in \mathcal{W}_c,
+$$
+
+with $d_c$ = campaign's `daily_doses`, $\mathcal{A}_c$ = its targeted age groups, $\mathcal{W}_c$ = its time window, and $S_j(t)$ = source-compartment population in group $j$ at step $t$. The rate $r_c(t)$ is the same for every $i \in \mathcal{A}_c$; what differs by group is the **transition count**, which is a binomial draw on each group's donor pool:
+
+$$
+\Delta V_i(t) \sim \mathrm{Binomial}\!\Bigl(S_i(t),\ \textstyle\sum_{c\,:\,i \in \mathcal{A}_c} r_c(t)\,dt\Bigr).
+$$
+
+In expectation, group $i$ receives $r_c(t)\,S_i(t)\,dt = d_c\,dt \cdot S_i(t) / \sum_j S_j(t)$ doses per step from each campaign that targets it: the per-step **count** is proportional to $S_i$, even though the per-individual **rate** is uniform.
+
+## Mean-field dynamics
+
+Letting $S_i(t)$ and $V_i(t)$ denote the donor and target compartments in age group $i$, the vaccination block contributes a pair of opposite-sign terms to the mean-field ODEs:
+
+$$
+\frac{dS_i}{dt} = -\,r_i(t)\,S_i(t),
+\qquad
+\frac{dV_i}{dt} = +\,r_i(t)\,S_i(t),
+$$
+
+where $r_i(t) = \sum_{c\,:\,i \in \mathcal{A}_c} r_c(t)$ is the per-individual rate group $i$ sees, summed across the campaigns that target it. The pair conserves $S_i + V_i$ on its own; everything else (infection out of either compartment, waning back in, etc.) comes from the surrounding model.
+
+## Vaccine efficacy
+
+How much protection vaccination confers is a property of the **model**, not the rollout block. The [`V-SEIHR` preset](../model/presets/v-seihr.mdx#vaccine-efficacy) defines `VE_S` (against infection) and `VE_H` (against hospitalization given infection) and uses them to attenuate the force of infection and hospitalization split on the vaccinated layer. Custom models can mirror the same pattern with their own efficacy expressions.
+
+## Inspecting the rollout
+
+The vaccination flow surfaces as a regular transition in the response. For `V-SEIHR`, look for `Susceptible_to_Susceptible_vax` under `results.transitions.data`; the request itself is echoed back under `metadata.vaccination`.
+
+:::tip
+Use the [API Reference](/api-reference) to explore the vaccination schema field-by-field and try requests interactively.
+:::

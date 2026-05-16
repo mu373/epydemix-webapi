@@ -3,6 +3,11 @@ import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import dotenv from 'dotenv';
+
+// Load .env.local for local dev. Vercel injects its own env vars at build
+// time, so the file's absence on production builds is fine (no-op).
+dotenv.config({path: '.env.local'});
 
 const config: Config = {
   title: 'epydemix Web API',
@@ -153,6 +158,15 @@ const config: Config = {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
       additionalLanguages: ['bash', 'json', 'python'],
+    },
+    // Algolia DocSearch. Credentials come from environment variables so the
+    // search-only key never lands in the repo (set them in .env.local for
+    // local dev and in the Vercel project's Environment Variables for prod).
+    algolia: {
+      appId: process.env.ALGOLIA_APP_ID ?? '',
+      apiKey: process.env.ALGOLIA_SEARCH_API_KEY ?? '',
+      indexName: process.env.ALGOLIA_INDEX_NAME ?? '',
+      contextualSearch: true,
     },
   } satisfies Preset.ThemeConfig,
 };

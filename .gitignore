@@ -68,3 +68,4 @@ web/.docusaurus/
 #   uv run python scripts/generate_llms_txt.py
 web/static/docs/
 web/static/llms-full.txt
+.vercel

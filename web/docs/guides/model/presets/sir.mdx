@@ -1,0 +1,43 @@
+---
+sidebar_position: 2
+---
+
+import EndpointSelector from '@site/src/components/EndpointSelector';
+import CurlBlock from '@site/src/components/CurlBlock';
+
+# SIR
+
+<EndpointSelector />
+
+The Susceptible-Infected-Recovered model. A basic epidemic model where recovered individuals gain permanent immunity.
+
+## Compartments
+
+- **Susceptible**: individuals who can be infected
+- **Infected**: individuals who are currently infectious
+- **Recovered**: individuals who have recovered and are immune
+
+## Transitions
+
+- **Susceptible &rarr; Infected**: mediated by `transmission_rate` and the number of Infected individuals
+- **Infected &rarr; Recovered**: spontaneous at `recovery_rate`
+
+## Default parameters
+
+| Parameter | Default | Description |
+|---|---|---|
+| `transmission_rate` | 0.3 | Rate at which susceptible individuals become infected through contact with infectious individuals |
+| `recovery_rate` | 0.1 | Rate at which infected individuals recover (1 / infectious period in days) |
+
+<CurlBlock>
+{`curl -X POST BASE_URL/simulations \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": {
+      "preset": "SIR",
+      "parameters": {"transmission_rate": 0.3, "recovery_rate": 0.1}
+    },
+    "population": {"name": "Italy"},
+    "simulation": {"start_date": "2024-01-01", "end_date": "2024-04-01", "Nsim": 10}
+  }'`}
+</CurlBlock>

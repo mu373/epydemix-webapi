@@ -1,0 +1,46 @@
+---
+sidebar_position: 3
+---
+
+import EndpointSelector from '@site/src/components/EndpointSelector';
+import CurlBlock from '@site/src/components/CurlBlock';
+
+# SEIR
+
+<EndpointSelector />
+
+The Susceptible-Exposed-Infected-Recovered model. Extends SIR with an exposed (latent) period before individuals become infectious.
+
+## Compartments
+
+- **Susceptible**: individuals who can be infected
+- **Exposed**: individuals who are infected but not yet infectious (latent period)
+- **Infected**: individuals who are currently infectious
+- **Recovered**: individuals who have recovered and are immune
+
+## Transitions
+
+- **Susceptible &rarr; Exposed**: mediated by `transmission_rate` and the number of Infected individuals
+- **Exposed &rarr; Infected**: spontaneous at `incubation_rate`
+- **Infected &rarr; Recovered**: spontaneous at `recovery_rate`
+
+## Default parameters
+
+| Parameter | Default | Description |
+|---|---|---|
+| `transmission_rate` | 0.3 | Rate at which susceptible individuals become exposed through contact with infectious individuals |
+| `incubation_rate` | 0.2 | Rate of progression from exposed to infectious (1 / incubation period in days) |
+| `recovery_rate` | 0.1 | Rate at which infected individuals recover (1 / infectious period in days) |
+
+<CurlBlock>
+{`curl -X POST BASE_URL/simulations \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": {
+      "preset": "SEIR",
+      "parameters": {"transmission_rate": 0.3, "incubation_rate": 0.2, "recovery_rate": 0.1}
+    },
+    "population": {"name": "United_States"},
+    "simulation": {"start_date": "2024-01-01", "end_date": "2024-06-01", "Nsim": 10}
+  }'`}
+</CurlBlock>

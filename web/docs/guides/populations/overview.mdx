@@ -21,7 +21,7 @@ A force of infection is computed by combining the contact matrices with the prop
 
 ## Example: Age-stratified SIR
 
-Let's look at an example of how the contact matrix is used in actual epidemic models. The following is an deterministic ordinary differential equations for age-stratified SIR model, which is the mean-field equivalent of the stochastic simulation of our [SIR preset](../model/presets.mdx#sir). Note that the simulations in this API are fully **stochastic**: at each time step, transitions between compartments are drawn from binomial distributions, and `Nsim` independent runs are executed.
+Let's look at an example of how the contact matrix is used in actual epidemic models. The following is an deterministic ordinary differential equations for age-stratified SIR model, which is the mean-field equivalent of the stochastic simulation of our [SIR preset](../model/presets/sir.mdx). Note that the simulations in this API are fully **stochastic**: at each time step, transitions between compartments are drawn from binomial distributions, and `Nsim` independent runs are executed.
 
 ### Model
 

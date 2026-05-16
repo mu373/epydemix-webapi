@@ -1,0 +1,129 @@
+---
+sidebar_position: 5
+---
+
+import EndpointSelector from '@site/src/components/EndpointSelector';
+import CurlBlock from '@site/src/components/CurlBlock';
+
+# V-SEIHR
+
+<EndpointSelector />
+
+Vaccinated SEIHR: a Susceptible-Exposed-Infected-Hospitalized-Recovered model with a parallel **vaccinated layer**. Every compartment has a `_vax` twin, and vaccine efficacy reduces both susceptibility (`VE_S`) and severity (`VE_H`). Pair it with the [`vaccination` block](../../vaccination/overview.mdx) to drive doses from `Susceptible` into `Susceptible_vax` over a campaign window.
+
+## Compartments
+
+The preset declares ten compartments: five clinical states, each with an unvaccinated and a vaccinated version.
+
+- **Susceptible** / **Susceptible_vax**: can be infected; the `_vax` layer is exposed at a reduced rate.
+- **Exposed** / **Exposed_vax**: infected but not yet infectious.
+- **Infected** / **Infected_vax**: currently infectious. Vaccinated infectious individuals transmit at the *same* per-contact rate as unvaccinated; the reduction sits on susceptibility, not transmissibility.
+- **Hospitalized** / **Hospitalized_vax**: severe cases under hospital care.
+- **Recovered** / **Recovered_vax**: recovered and (transiently) immune; waning, if enabled, returns them to the matching susceptible compartment.
+
+## Transitions
+
+The unvaccinated and vaccinated layers mirror each other. Vaccinated susceptibles are exposed by both `Infected` and `Infected_vax` (same per-contact rate `transmission_rate`, attenuated by `(1 - VE_S)`); the hospitalization split is attenuated by `(1 - VE_H)` for vaccinated infected.
+
+| From | To | Kind | Rate |
+|---|---|---|---|
+| `Susceptible` | `Exposed` | mediated by `Infected` and `Infected_vax` | `transmission_rate` |
+| `Exposed` | `Infected` | spontaneous | `incubation_rate` |
+| `Infected` | `Recovered` | spontaneous | `(1 - hosp_proportion) * recovery_rate` |
+| `Infected` | `Hospitalized` | spontaneous | `hosp_proportion * recovery_rate` |
+| `Hospitalized` | `Recovered` | spontaneous | `hosp_recovery_rate` |
+| `Recovered` | `Susceptible` | spontaneous | `waning_rate` (0 by default) |
+| `Susceptible_vax` | `Exposed_vax` | mediated by `Infected` and `Infected_vax` | `transmission_rate_vax = (1 - VE_S) * transmission_rate` |
+| `Exposed_vax` | `Infected_vax` | spontaneous | `incubation_rate` |
+| `Infected_vax` | `Recovered_vax` | spontaneous | `(1 - hosp_proportion_vax) * recovery_rate` |
+| `Infected_vax` | `Hospitalized_vax` | spontaneous | `hosp_proportion_vax * recovery_rate` where `hosp_proportion_vax = (1 - VE_H) * hosp_proportion` |
+| `Hospitalized_vax` | `Recovered_vax` | spontaneous | `hosp_recovery_rate` |
+| `Recovered_vax` | `Susceptible_vax` | spontaneous | `waning_rate` |
+
+The `Susceptible → Susceptible_vax` flow is not part of the preset itself; it is added when the request supplies a [`vaccination`](../../vaccination/overview.mdx) block. Without that block the vaccinated layer stays at zero and the model behaves like plain SEIHR.
+
+## Vaccine efficacy
+
+The preset exposes two efficacy parameters, both unitless and in $[0, 1]$.
+
+**`VE_S`** (efficacy against infection) lowers the force of infection on vaccinated susceptibles:
+
+$$
+\lambda^{\text{vax}}_i(t) = (1 - \mathrm{VE_S}) \cdot \lambda_i(t),
+$$
+
+where
+
+$$
+\lambda_i(t) = \beta \sum_j C_{ij}\,\frac{I_j(t) + I_j^{\text{vax}}(t)}{N_j}
+$$
+
+is the standard age-structured force of infection, $\beta$ is `transmission_rate`, and $C_{ij}$ is the contact matrix from the resolved population. Vaccinated infectious individuals transmit at the **same** per-contact rate as unvaccinated; the reduction sits entirely on the susceptibility side. Internally, the preset stores this as the calculated parameter `transmission_rate_vax = (1 - VE_S) * transmission_rate`.
+
+**`VE_H`** (efficacy against hospitalization, given infection) lowers the hospitalization split for vaccinated infected:
+
+$$
+p_H^{\text{vax}} = (1 - \mathrm{VE_H}) \cdot p_H,
+$$
+
+stored as `hosp_proportion_vax = (1 - VE_H) * hosp_proportion`.
+
+Limit cases worth remembering:
+
+- $\mathrm{VE_S} = 1$: sterilizing immunity. The vaccinated layer has zero force of infection and never sees breakthrough infections.
+- $\mathrm{VE_S} = 0$: no protection against infection. The vaccinated layer's transmission dynamics collapse onto the unvaccinated layer's.
+- $\mathrm{VE_H} = 1$: vaccinated infected never hospitalize ($p_H^{\text{vax}} = 0$); all flow through `Infected_vax → Recovered_vax`.
+- $\mathrm{VE_H} = 0$: vaccinated infected hospitalize at the same rate as unvaccinated.
+
+See the [Mean-field dynamics](../../vaccination/overview.mdx#mean-field-dynamics) section of the vaccination guide for the source/target ODE pair that the `vaccination` block adds on top of the transitions above.
+
+## Default parameters
+
+V-SEIHR accepts both rate-form (`recovery_rate`, `incubation_rate`, ...) and period-form (`infectious_period`, `incubation_period`, ...) inputs, plus `R0` as a friendlier alternative to `transmission_rate`. The conversion is automatic; see the [calculated parameters](../parameters/overview.mdx#reserved-names) section for how `R0 → β` works under the hood.
+
+| Parameter | Default | Description |
+|---|---|---|
+| `R0` | 2.5 | Basic reproduction number. Internally converted to `transmission_rate = R0 * recovery_rate / CONTACT_MATRIX_EIGENVALUE_ALL`. |
+| `incubation_period` | 3.0 | Days from exposure to infectiousness. Converted to `incubation_rate = 1 / incubation_period`. |
+| `infectious_period` | 2.5 | Days infectious. Converted to `recovery_rate = 1 / infectious_period`. |
+| `hospitalization_duration` | 5.0 | Days hospitalized before recovery. Converted to `hosp_recovery_rate = 1 / hospitalization_duration`. |
+| `hosp_proportion` | 0.05 | Fraction of unvaccinated `Infected` who progress to `Hospitalized` rather than `Recovered`. |
+| `VE_S` | 0.7 | Vaccine efficacy against infection. `0` = no protection, `1` = sterilizing. |
+| `VE_H` | 0.85 | Vaccine efficacy against hospitalization (given infection). |
+| `waning_rate` | 0.0 | Rate at which `Recovered` (and `Recovered_vax`) return to the matching susceptible pool. Off by default. |
+
+To enable waning, pass `immunity_duration` (in days) instead of `waning_rate`; the resolver injects `waning_rate = 1 / immunity_duration`. You can override either the period or the rate, but not both.
+
+The derived parameters (`transmission_rate_vax`, `hosp_proportion_vax`, `I_to_R_rate`, `I_to_H_rate`, `Ivax_to_R_rate`, `Ivax_to_H_rate`) are computed automatically from the inputs above and surface in `results.parameters` when `output.include_parameters` is set. You can override any of them by passing a matching name in `parameters` (user-supplied calc-params win on collision).
+
+<CurlBlock>
+{`curl -X POST BASE_URL/simulations \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": {
+      "preset": "V-SEIHR",
+      "parameters": {
+        "R0": 2.5,
+        "incubation_period": 3.0,
+        "infectious_period": 2.5,
+        "hospitalization_duration": 5.0,
+        "hosp_proportion": 0.05,
+        "VE_S": 0.7,
+        "VE_H": 0.85
+      }
+    },
+    "population": {"name": "United_States"},
+    "simulation": {"start_date": "2025-01-01", "end_date": "2025-06-30", "Nsim": 10},
+    "vaccination": {
+      "campaigns": [
+        {
+          "start_date": "2025-02-01",
+          "end_date": "2025-04-30",
+          "rollout": {"type": "flat_count", "daily_doses": 100000}
+        }
+      ]
+    }
+  }'`}
+</CurlBlock>
+
+See the [Campaigns page](../../vaccination/campaigns.mdx) for the full set of campaign options.

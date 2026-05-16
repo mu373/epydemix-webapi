@@ -21,7 +21,7 @@ Add `parameter_transforms` with `balcan` method targeting the parameter you want
 ]
 ```
 
-See [Parameter Transforms › Seasonality](./guides/parameter-transforms.mdx#seasonality) for the math.
+See [Parameter Transforms › Seasonality](./guides/model/parameters/transformations.mdx#seasonality) for the math.
 
 ## How do I make a parameter age-varying?
 
@@ -33,7 +33,7 @@ Pass a list under `model.parameters` instead of a scalar. The list length must e
 }
 ```
 
-See [Model › Parameters](./guides/model/parameters.mdx#age-varying-parameters).
+See [Model › Parameters](./guides/model/parameters/overview.mdx#age-varying-parameters).
 
 ## How do I define a custom model?
 
@@ -73,7 +73,7 @@ Use a `parameter_transforms` entry with `method: "override"`. The replacement is
 ]
 ```
 
-See [Parameter Transforms › Override](./guides/parameter-transforms.mdx#override).
+See [Parameter Transforms › Override](./guides/model/parameters/transformations.mdx#override).
 
 ## How do I make simulations reproducible?
 
@@ -96,7 +96,7 @@ Set `output.include_parameters: true`. The response gains a `results.parameters`
 "output": { "include_parameters": true }
 ```
 
-See [Parameter Transforms › Inspecting the effective parameter values](./guides/parameter-transforms.mdx#inspecting-the-effective-parameter-values).
+See [Parameter Transforms › Inspecting the effective parameter values](./guides/model/parameters/transformations.mdx#inspecting-the-effective-parameter-values).
 
 ## What's the difference between `scale` and `override`?
 

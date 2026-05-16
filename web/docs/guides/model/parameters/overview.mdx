@@ -1,15 +1,15 @@
 ---
-sidebar_position: 3
+sidebar_position: 1
 ---
 
 import EndpointSelector from '@site/src/components/EndpointSelector';
 import CurlBlock from '@site/src/components/CurlBlock';
 
-# Parameters
+# Overview
 
 <EndpointSelector />
 
-Parameters are the named rate values referenced by your model's transitions. Every parameter used in a [preset](./presets.mdx) or [custom model](./custom-models.mdx) transition must appear under `model.parameters`. Three value shapes are supported: scalar, age-varying, and calculated (expressions over other parameters).
+Parameters are the named rate values referenced by your model's transitions. Every parameter used in a [preset](../presets/overview.mdx) or [custom model](../custom-models.mdx) transition must appear under `model.parameters`. Three value shapes are supported: scalar, age-varying, and calculated (expressions over other parameters).
 
 ## Scalar parameters
 
@@ -89,7 +89,7 @@ A string value in `parameters` is treated as an arithmetic expression over the *
 }
 ```
 
-Source-parameter shapes propagate via numpy broadcasting. If `p_h` is age-varying (`[0.05, 0.10, 0.15, 0.20, 0.25]`), then `(1 - p_h) * gamma` is automatically age-varying too. If `gamma` is also seasonally scaled via [`parameter_transforms`](../parameter-transforms.mdx), the calculated parameter inherits the time-variation as well — calculated parameters evaluate **after** transforms.
+Source-parameter shapes propagate via numpy broadcasting. If `p_h` is age-varying (`[0.05, 0.10, 0.15, 0.20, 0.25]`), then `(1 - p_h) * gamma` is automatically age-varying too. If `gamma` is also seasonally scaled via [`parameter_transforms`](./transformations.mdx), the calculated parameter inherits the time-variation as well — calculated parameters evaluate **after** transforms.
 
 ### Allowed expression syntax
 
@@ -103,9 +103,12 @@ Strict arithmetic only:
 
 Function calls, attribute access, subscripts, comparisons, and conditionals are rejected with a `422` error. This keeps expressions safe to evaluate and easy to read.
 
+### Transforms on calculated parameters
+
+A calculated parameter **can** be the `target_parameter` of a [`parameter_transform`](./transformations.mdx). The transform layers on top of the evaluated expression: source-targeted transforms run first, then expressions are evaluated (so the sources' post-transform values feed in), then any transform targeting a calc-param applies to the result. Use this when you want to modulate a derived parameter directly without changing every source it depends on, e.g. a flat scale on `transmission_rate_vax` while a `balcan` envelope modulates `transmission_rate`.
+
 ### Restrictions
 
-- A calculated parameter cannot be the `target_parameter` of a [`parameter_transform`](../parameter-transforms.mdx). Apply the transform to a source parameter and let it propagate through the expression instead.
 - Circular dependencies among expressions (`a = "b + 1", b = "a + 1"`) are rejected with a `422`.
 - A reference to an undefined name is rejected with a `422` naming the missing parameter.
 
@@ -145,4 +148,4 @@ Reserved names exist only in the expression namespace; they are not stored on th
 
 ## Time-varying parameters
 
-To make parameters change over the course of the simulation (seasonality, scaling windows, or absolute overrides), use [`parameter_transforms`](../parameter-transforms.mdx). Transforms compose on top of whatever you set here, so a base scalar or age-varying parameter still acts as the starting point.
+To make parameters change over the course of the simulation (seasonality, scaling windows, or absolute overrides), use [`parameter_transforms`](./transformations.mdx). Transforms compose on top of whatever you set here, so a base scalar or age-varying parameter still acts as the starting point.

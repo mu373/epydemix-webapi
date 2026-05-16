@@ -17,7 +17,7 @@ You can either pick a built-in [population preset](./presets.mdx) (real-world de
 ## Contact Matrix
 The contact matrix is what lets the model capture **heterogeneity of contacts across age groups**. In real data, the diagonal is typically the largest entry (people interact most with peers their own age, **assortative mixing**), and the strength varies by setting. The `school` layer is dominated by contacts among school-age groups, `work` is concentrated in working-age groups, and `home` mixes parents with children. Splitting contacts by layer makes this structure explicit, and lets [interventions](../running-a-simulation.mdx) target a single setting (e.g. closing schools) without touching the others.
 
-A force of infection is computed by combining the contact matrices with the proportion of infectious individuals in each group, so age structure shapes both who gets infected first and the overall epidemic shape. Parameters like `transmission_rate` can also be specified per age group; see [Parameters](../model/parameters.mdx).
+A force of infection is computed by combining the contact matrices with the proportion of infectious individuals in each group, so age structure shapes both who gets infected first and the overall epidemic shape. Parameters like `transmission_rate` can also be specified per age group; see [Parameters](../model/parameters/overview.mdx).
 
 ## Example: Age-stratified SIR
 
@@ -57,7 +57,7 @@ $$
 
 where $\rho(C)$ is the **spectral radius (largest eigenvalue) of the overall contact matrix** (the sum of the layer matrices). The spectral radius is returned as `spectral_radius.overall` by [`GET /populations/{name}/contacts`](./presets.mdx#get-contact-matrices), so you can plug it straight in to pick a `transmission_rate` that targets a desired $R_0$.
 
-To do this calculation directly inside the request, use the reserved name `CONTACT_MATRIX_EIGENVALUE_ALL` (= $\rho(C)$) from a [calculated parameter](../model/parameters.mdx#calculated-parameters):
+To do this calculation directly inside the request, use the reserved name `CONTACT_MATRIX_EIGENVALUE_ALL` (= $\rho(C)$) from a [calculated parameter](../model/parameters/overview.mdx#calculated-parameters):
 
 ```json
 {

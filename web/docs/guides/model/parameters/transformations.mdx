@@ -1,11 +1,11 @@
 ---
-sidebar_position: 4
+sidebar_position: 2
 ---
 
 import EndpointSelector from '@site/src/components/EndpointSelector';
 import CurlBlock from '@site/src/components/CurlBlock';
 
-# Parameter Transforms
+# Transformations
 
 <EndpointSelector />
 
@@ -17,7 +17,7 @@ import CurlBlock from '@site/src/components/CurlBlock';
 | `scale` | Constant multiplicative factor over a date window | pre-simulation |
 | `override` | Absolute replacement value over a date window (scalar or per age group) | during simulation |
 
-All three transforms target an existing parameter via `target_parameter`, which must already be defined in `model.parameters`. The target must be a **source** parameter (scalar or age-varying) — [calculated parameters](./model/parameters.mdx#calculated-parameters) cannot be transform targets. Apply the transform to a source instead and let it propagate through the expression.
+All three transforms target an existing parameter via `target_parameter`, which must already be defined in `model.parameters`. Both source parameters (scalar or age-varying) and [calculated parameters](./overview.mdx#calculated-parameters) are valid targets. Transforms on a source propagate through any expression that references it; transforms on a calc-param itself apply *after* the expression is evaluated, so the two compose naturally (see [Transforms on calculated parameters](./overview.mdx#transforms-on-calculated-parameters)).
 
 ## Composition order
 

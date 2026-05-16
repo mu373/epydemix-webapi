@@ -1,6 +1,8 @@
 # epydemix WebAPI documentation — open docs for an open-source epidemic simulator.
 # All crawlers and AI agents are welcome.
 
+# Algolia-Crawler-Verif: C2142BAF64938FC0
+
 User-agent: *
 Allow: /
 

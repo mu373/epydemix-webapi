@@ -53,6 +53,58 @@ SIMULATION_REQUEST_EXAMPLES: dict[str, Example] = {
             },
         },
     ),
+    "V-SEIHR with seasonality and vaccination": Example(
+        summary="V-SEIHR: Northern-Hemisphere seasonality + autumn vaccination campaign",
+        description=(
+            "Year-long V-SEIHR run on the US population with two interventions composed: "
+            "seasonality on `transmission_rate` (peak Jan 15, trough Jul 15, "
+            "matching the Northern Hemisphere defaults from Balcan et al. 2010, "
+            "https://doi.org/10.1016/j.jocs.2010.07.002), and a flat-count vaccination "
+            "campaign delivered Oct 15 - Dec 31 so the rollout finishes just before "
+            "the seasonal peak. `output.include_parameters` is enabled so the per-step "
+            "`transmission_rate` series surfaces in the response for sanity-checking "
+            "the envelope."
+        ),
+        value={
+            "model": {
+                "preset": "V-SEIHR",
+                "parameters": {
+                    "R0": 2.5,
+                    "incubation_period": 3.0,
+                    "infectious_period": 2.5,
+                    "hosp_duration": 5.0,
+                    "hosp_proportion": [0.002, 0.005, 0.015, 0.05, 0.18],
+                    "VE_S": 0.7,
+                    "VE_H": 0.85,
+                },
+            },
+            "population": {"name": "United_States"},
+            "simulation": {
+                "start_date": "2025-08-01",
+                "end_date": "2026-07-31",
+                "Nsim": 10,
+            },
+            "parameter_transforms": [
+                {
+                    "target_parameter": "transmission_rate",
+                    "method": "balcan",
+                    "max_date": "2026-01-15",
+                    "min_date": "2026-07-15",
+                    "min_value": 0.85,
+                }
+            ],
+            "vaccination": {
+                "campaigns": [
+                    {
+                        "start_date": "2025-10-15",
+                        "end_date": "2025-12-31",
+                        "rollout": {"type": "flat_count", "daily_doses": 100000},
+                    }
+                ]
+            },
+            "output": {"include_parameters": True},
+        },
+    ),
 }
 
 

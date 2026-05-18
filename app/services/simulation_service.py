@@ -129,6 +129,14 @@ def create_model(
 
     if config.preset:
         preset_def = PRESETS[config.preset]
+        # Thread list-valued preset defaults into the age-varying pipeline.
+        # Any user override (scalar or list) for the same key wins.
+        preset_list_defaults = {
+            k: v
+            for k, v in preset_def.default_parameters.items()
+            if isinstance(v, list) and k not in raw
+        }
+        list_params = {**preset_list_defaults, **list_params}
         model, preset_calc_params = preset_def.build_model(scalar_params)
         # User calc-params win on collision (sensitivity scans, custom calibration).
         expr_params = {**preset_calc_params, **expr_params}

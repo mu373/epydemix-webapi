@@ -52,7 +52,7 @@ REQUEST = {
             "R0": 1.4,
             "incubation_period": 3.0,
             "infectious_period": 2.5,
-            "hospitalization_duration": 5.0,
+            "hosp_duration": 5.0,
             "hosp_proportion": 0.05,
             "VE_S": 0.85,
             "VE_H": 0.9,

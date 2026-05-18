@@ -32,7 +32,7 @@ def _baseline_request(**overrides):
                 "R0": 2.5,
                 "incubation_period": 3.0,
                 "infectious_period": 2.5,
-                "hospitalization_duration": 5.0,
+                "hosp_duration": 5.0,
                 "hosp_proportion": 0.05,
                 "VE_S": 0.7,
                 "VE_H": 0.85,
@@ -195,6 +195,44 @@ def test_v_seihr_with_vaccination_campaign(client):
     assert data["metadata"]["vaccination"]["campaigns"][0]["rollout"]["daily_doses"] == 100_000
 
 
+def test_v_seihr_hosp_proportion_default_is_age_stratified(client):
+    """The hosp_proportion default is a length-5 list matching the dashboard.
+
+    Locks down both the registry advertisement and the runtime behavior: the
+    list reaches the model and surfaces as a per-age-group series in
+    ``results.parameters``, and the derived calc-params (``hosp_proportion_vax``,
+    ``I_to_H_rate``, ``Ivax_to_H_rate``) inherit the per-group shape.
+    """
+    expected = [0.002, 0.005, 0.015, 0.05, 0.18]
+
+    # Registry advertises the list default (and the presets endpoint echoes it).
+    presets_response = client.get("/api/v1/models/presets")
+    assert presets_response.status_code == 200
+    v_seihr = next(p for p in presets_response.json()["presets"] if p["name"] == "V-SEIHR")
+    assert v_seihr["parameters"]["hosp_proportion"] == expected
+
+    # Runtime: omit hosp_proportion so the default is exercised end-to-end.
+    request = _baseline_request()
+    request["model"]["parameters"].pop("hosp_proportion")
+    request["output"] = {"include_parameters": True}
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200, response.text
+    params = response.json()["results"]["parameters"]["data"]
+
+    # hosp_proportion appears once per age group, each as a constant time series
+    # equal to its bin's default. There are five bins; bin ordering follows the
+    # epydemix United_States age structure.
+    groups = list(params["hosp_proportion"].keys())
+    assert len(groups) == 5, groups
+    for group_name, group_default in zip(groups, expected):
+        series = params["hosp_proportion"][group_name]
+        assert series == pytest.approx([group_default] * len(series), abs=1e-12)
+
+    # Derived calc-params inherit the age structure.
+    for derived in ("hosp_proportion_vax", "I_to_H_rate", "Ivax_to_H_rate"):
+        assert len(params[derived]) == 5, f"{derived} not age-stratified"
+
+
 def test_v_seihr_explicit_initial_conditions(client):
     """Initial conditions seed Infected and leave _vax compartments empty when requested explicitly.
 
@@ -240,7 +278,7 @@ def test_v_seihr_vaccination_speed_orders_outcomes(client):
                 "R0": 2.5,
                 "incubation_period": 3.0,
                 "infectious_period": 2.5,
-                "hospitalization_duration": 5.0,
+                "hosp_duration": 5.0,
                 "hosp_proportion": 0.05,
                 "VE_S": 0.85,
                 "VE_H": 0.9,

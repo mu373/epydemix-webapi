@@ -49,7 +49,7 @@ def test_rate_fn_inactive_campaign_returns_zero():
     campaign = ResolvedCampaign(daily_doses_at_t=schedule, target_age_indices=np.array([0]))
     rate_fn = make_vaccination_rate_fn([campaign], n_groups=1)
     rate = rate_fn(
-        {"source": "X"},
+        {"source": "X", "denominator_sources": ("X",)},
         {"t": 0, "pop": np.array([[100.0], [0.0]]), "comp_indices": {"X": 0, "X_vax": 1}},
     )
     assert rate == pytest.approx(0.0, abs=1e-12)
@@ -62,11 +62,33 @@ def test_rate_fn_with_empty_source_returns_zero():
     rate_fn = make_vaccination_rate_fn([campaign], n_groups=1)
     # Population is zero in the source compartment, which could lead to division by zero if not handled properly.
     rate = rate_fn(
-        {"source": "X"},
+        {"source": "X", "denominator_sources": ("X",)},
         {"t": 0, "pop": np.array([[0.0], [0.0]]), "comp_indices": {"X": 0, "X_vax": 1}},
     )
     assert np.all(np.isfinite(rate))
     assert rate == pytest.approx(0.0, abs=1e-12)
+
+
+def test_rate_fn_multi_source_denominator():
+    """Multi-source `denominator_sources` reproduces the upstream `D/(S+R)` rule.
+
+    With S=200, R=300, daily_doses=50, the per-individual rate should be
+    50/(200+300) = 0.1; the same value applies to every individual in any
+    of the listed source compartments, even though the binomial draw is only
+    against the per-transition source.
+    """
+    schedule = np.array([50.0])
+    campaign = ResolvedCampaign(daily_doses_at_t=schedule, target_age_indices=np.array([0]))
+    rate_fn = make_vaccination_rate_fn([campaign], n_groups=1)
+    rate = rate_fn(
+        {"source": "S", "denominator_sources": ("S", "R")},
+        {
+            "t": 0,
+            "pop": np.array([[200.0], [300.0], [0.0]]),
+            "comp_indices": {"S": 0, "R": 1, "S_vax": 2},
+        },
+    )
+    assert rate[0] == pytest.approx(50.0 / (200.0 + 300.0))
 
 
 def test_flat_count_delivers_expected_doses_per_day():
@@ -87,7 +109,7 @@ def test_flat_count_delivers_expected_doses_per_day():
         source="X",
         target="X_vax",
         kind="vaccination_count",
-        params={"source": "X"},
+        params={"source": "X", "denominator_sources": ("X",)},
     )
 
     results = model.run_simulations(
@@ -128,7 +150,10 @@ def test_dose_cap_when_source_depleted():
     rate_fn = make_vaccination_rate_fn([campaign], n_groups=1)
     register_vaccination_kind(model, rate_fn)
     model.add_transition(
-        source="X", target="X_vax", kind="vaccination_count", params={"source": "X"}
+        source="X",
+        target="X_vax",
+        kind="vaccination_count",
+        params={"source": "X", "denominator_sources": ("X",)},
     )
 
     results = model.run_simulations(
@@ -182,7 +207,7 @@ def _wire_vaccination(
         source="X",
         target="X_vax",
         kind="vaccination_count",
-        params={"source": "X"},
+        params={"source": "X", "denominator_sources": ("X",)},
     )
 
 

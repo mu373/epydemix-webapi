@@ -54,8 +54,7 @@ def _custom_vax_model_request(**overrides):
             },
         },
         "vaccination": {
-            "source_compartment": "S",
-            "target_compartment": "S_vax",
+            "flows": [{"source": "S", "target": "S_vax"}],
             "campaigns": [
                 {
                     "start_date": "2025-01-05",
@@ -78,35 +77,90 @@ def test_vaccination_custom_model_runs(client):
     assert "S_to_S_vax" in data["results"]["transitions"]["data"]
 
 
-def test_vaccination_missing_source_target_on_custom_model(client):
-    """Custom models without preset defaults must supply both source and target compartments."""
+def test_vaccination_missing_flows_on_custom_model(client):
+    """Custom models without preset defaults must supply `flows` explicitly."""
     request = _custom_vax_model_request()
-    request["vaccination"]["source_compartment"] = None  # Missing source
+    request["vaccination"].pop("flows")
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 422
     detail = response.json()["detail"]
-    assert "source_compartment" in detail
+    assert "flows" in detail
 
 
 def test_vaccination_invalid_source_compartment(client):
-    """Source compartment must exist in the model; otherwise 422 names it."""
+    """Flow source must exist in the model; otherwise 422 names it."""
     request = _custom_vax_model_request()
-    request["vaccination"]["source_compartment"] = "ghost"  # Nonexistent compartment
+    request["vaccination"]["flows"] = [{"source": "ghost", "target": "S_vax"}]
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 422
     detail = response.json()["detail"]
     assert "ghost" in detail
-    assert "source_compartment" in detail
+    assert "source" in detail
 
 
-def test_vaccination_source_equals_target(client):
-    """A self-loop S -> S is a configuration error: source and target must be distinct."""
+def test_vaccination_invalid_target_compartment(client):
+    """Flow target (when non-null) must exist in the model; otherwise 422 names it."""
     request = _custom_vax_model_request()
-    request["vaccination"]["target_compartment"] = "S"  # S -> S is not allowed
+    request["vaccination"]["flows"] = [{"source": "S", "target": "phantom"}]
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 422
     detail = response.json()["detail"]
-    assert "distinct" in detail
+    assert "phantom" in detail
+    assert "target" in detail
+
+
+def test_vaccination_flow_source_equals_target(client):
+    """A self-loop S -> S inside a flow is a configuration error."""
+    request = _custom_vax_model_request()
+    request["vaccination"]["flows"] = [{"source": "S", "target": "S"}]
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 422
+    detail_str = str(response.json()["detail"])
+    assert "distinct" in detail_str
+
+
+def test_vaccination_flows_must_have_one_target(client):
+    """`flows` with no entry carrying a non-null target is rejected."""
+    request = _custom_vax_model_request()
+    request["vaccination"]["flows"] = [
+        {"source": "S", "target": None},
+        {"source": "S_vax", "target": None},
+    ]
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 422
+    detail_str = str(response.json()["detail"])
+    assert "target" in detail_str
+
+
+def test_vaccination_flows_empty_list(client):
+    """An empty `flows` list is rejected."""
+    request = _custom_vax_model_request()
+    request["vaccination"]["flows"] = []
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 422
+    detail_str = str(response.json()["detail"])
+    assert "flows" in detail_str
+
+
+def test_vaccination_flows_duplicate_source(client):
+    """Duplicate `source` values across `flows` are rejected."""
+    request = _custom_vax_model_request()
+    request["vaccination"]["flows"] = [
+        {"source": "S", "target": "S_vax"},
+        {"source": "S", "target": None},
+    ]
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 422
+    detail_str = str(response.json()["detail"])
+    assert "unique" in detail_str
+
+
+def test_vaccination_legacy_fields_rejected(client):
+    """`source_compartment` / `target_compartment` were removed; sending them 422s."""
+    request = _custom_vax_model_request()
+    request["vaccination"]["source_compartment"] = "S"
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 422
 
 
 def test_vaccination_invalid_age_group(client):
@@ -172,8 +226,7 @@ def test_vaccination_metadata_echoed(client):
     response = client.post("/api/v1/simulations", json=_custom_vax_model_request())
     assert response.status_code == 200
     metadata = response.json()["metadata"]
-    assert metadata["vaccination"]["source_compartment"] == "S"
-    assert metadata["vaccination"]["target_compartment"] == "S_vax"
+    assert metadata["vaccination"]["flows"] == [{"source": "S", "target": "S_vax"}]
     assert len(metadata["vaccination"]["campaigns"]) == 1
 
 
@@ -197,3 +250,145 @@ def test_vaccination_dose_count_close_to_expected(client):
     expected = 10_000 * 11
     cumulative = sum(in_window)
     assert cumulative == pytest.approx(expected, rel=0.05)
+
+
+def _dose_sink_request():
+    """S + R compete for doses; only S -> S_vax fires. Matches epydemix tutorial 09.
+
+    R starts large so the denominator is dominated by R; transitions per step
+    should land near `daily_doses * S / (S + R)` rather than `daily_doses`.
+    """
+    # No model-level transitions: the vaccination block adds the only S -> S_vax
+    # transition. Adding a rate-0 spontaneous S -> S_vax here would trigger the
+    # upstream epydemix transitions_evolution double-counting bug (see
+    # BUG-epydemix-transition-count-duplication.md).
+    return {
+        "model": {
+            "compartments": ["S", "S_vax", "R"],
+            "parameters": {"k": 0.0},
+            "transitions": [],
+        },
+        "population": {
+            "source": "custom",
+            "name": "tiny",
+            "age_groups": {"all": 1_000_000},
+            "contact_matrices": {"all": [[1.0]]},
+        },
+        "simulation": {
+            "start_date": "2025-01-01",
+            "end_date": "2025-01-15",
+            "Nsim": 50,
+            "seed": 11,
+        },
+        "initial_conditions": {
+            "method": "absolute",
+            "compartments": {"S": [200_000], "S_vax": [0], "R": [800_000]},
+        },
+        "vaccination": {
+            "flows": [
+                {"source": "S", "target": "S_vax"},
+                {"source": "R", "target": None},
+            ],
+            "campaigns": [
+                {
+                    "start_date": "2025-01-01",
+                    "end_date": "2025-01-15",
+                    "rollout": {"type": "flat_count", "daily_doses": 10_000},
+                }
+            ],
+        },
+    }
+
+
+def test_vaccination_dose_sink_rate_matches_S_over_S_plus_R(client):
+    """Per-step S->S_vax expectation = daily_doses * S / (S + R) (dose competition with R)."""
+    response = client.post("/api/v1/simulations", json=_dose_sink_request())
+    assert response.status_code == 200, response.text
+    data = response.json()
+    transitions = data["results"]["transitions"]["data"]
+    # Only the S -> S_vax transition should exist; R has no target so emits nothing.
+    assert "S_to_S_vax" in transitions
+    assert not any(key.startswith("R_to_") for key in transitions)
+
+    quantile_data = next(iter(transitions["S_to_S_vax"].values()))
+    median_key = "median" if "median" in quantile_data else "0.5"
+    series = quantile_data[median_key]
+    # Day-0 expectation: 10000 * 200000 / (200000 + 800000) = 2000.
+    assert series[0] == pytest.approx(2000.0, rel=0.10)
+
+
+def _multi_target_request():
+    """Single 1000-dose campaign vaccinating both S and S_2 with their own targets.
+
+    Populations are scaled so `daily_doses / (S + S_2) << 1` and the binomial
+    rate stays in the near-linear regime, so per-flow daily transitions track
+    `daily_doses * S_i / (S + S_2)` to within a small stochastic margin.
+    """
+    # No model-level transitions: the vaccination block adds the only S -> S_vax
+    # and S_2 -> S_2_vax transitions. See note in `_dose_sink_request` for why.
+    return {
+        "model": {
+            "compartments": ["S", "S_vax", "S_2", "S_2_vax"],
+            "parameters": {"k": 0.0},
+            "transitions": [],
+        },
+        "population": {
+            "source": "custom",
+            "name": "tiny",
+            "age_groups": {"all": 1_000_000},
+            "contact_matrices": {"all": [[1.0]]},
+        },
+        "simulation": {
+            "start_date": "2025-01-01",
+            "end_date": "2025-01-05",
+            "Nsim": 100,
+            "seed": 17,
+        },
+        "initial_conditions": {
+            "method": "absolute",
+            "compartments": {
+                "S": [400_000],
+                "S_vax": [0],
+                "S_2": [600_000],
+                "S_2_vax": [0],
+            },
+        },
+        "vaccination": {
+            "flows": [
+                {"source": "S", "target": "S_vax"},
+                {"source": "S_2", "target": "S_2_vax"},
+            ],
+            "campaigns": [
+                {
+                    "start_date": "2025-01-01",
+                    "end_date": "2025-01-01",
+                    "rollout": {"type": "flat_count", "daily_doses": 10_000},
+                }
+            ],
+        },
+    }
+
+
+def test_vaccination_multi_target_proportional_to_live_pool(client):
+    """Two paired sources sharing one budget: per-flow counts split proportional to S_i."""
+    response = client.post("/api/v1/simulations", json=_multi_target_request())
+    assert response.status_code == 200, response.text
+    data = response.json()
+    transitions = data["results"]["transitions"]["data"]
+    assert "S_to_S_vax" in transitions
+    assert "S_2_to_S_2_vax" in transitions
+
+    def _day0_median(key: str) -> float:
+        q = next(iter(transitions[key].values()))
+        mk = "median" if "median" in q else "0.5"
+        return float(q[mk][0])
+
+    s_vax = _day0_median("S_to_S_vax")
+    s2_vax = _day0_median("S_2_to_S_2_vax")
+    # Linearized expectations: 10000 * 0.4 = 4000 and 10000 * 0.6 = 6000.
+    # Binomial p = 1 - exp(-r * dt) with r = 10000/1_000_000 = 0.01 lands within
+    # ~0.5% of the linearized value, well inside the stochastic slack below.
+    assert s_vax == pytest.approx(4000.0, rel=0.05)
+    assert s2_vax == pytest.approx(6000.0, rel=0.05)
+    # Total respects the budget on average.
+    assert s_vax + s2_vax == pytest.approx(10_000.0, rel=0.03)

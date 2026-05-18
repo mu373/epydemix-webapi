@@ -1,10 +1,11 @@
 """Apply a request-level vaccination block to an epydemix model.
 
-Validates the config, resolves the source/target compartments (preset
-defaults vs. user overrides), pre-computes one ``daily_doses_at_t`` schedule
-per campaign, registers the ``vaccination_count`` transition kind, and adds
-a single ``vaccination_count`` transition. The simulator then drives doses
-during each step according to the resolved schedules.
+Validates the config, resolves the campaign flows (preset defaults vs. user
+overrides), pre-computes one ``daily_doses_at_t`` schedule per campaign,
+registers the ``vaccination_count`` transition kind, and adds one
+``vaccination_count`` transition per flow that has a non-null target. The
+simulator then drives doses during each step according to the resolved
+schedules.
 
 Mutates ``model`` in place; no-op when the request supplies no
 ``vaccination`` block or an empty campaign list.
@@ -17,6 +18,7 @@ from epydemix.model.epimodel import EpiModel
 from epydemix.utils.utils import compute_simulation_dates
 
 from ..api.v1.schemas.simulation import (
+    CompartmentFlow,
     FlatCountRollout,
     SimulationConfig,
     VaccinationConfig,
@@ -29,8 +31,9 @@ from ..utils.vaccination import (
 )
 
 
-_V_SEIHR_DEFAULT_SOURCE = "Susceptible"
-_V_SEIHR_DEFAULT_TARGET = "Susceptible_vax"
+_V_SEIHR_DEFAULT_FLOWS: tuple[CompartmentFlow, ...] = (
+    CompartmentFlow(source="Susceptible", target="Susceptible_vax"),
+)
 
 
 def apply_vaccinations(
@@ -50,9 +53,8 @@ def apply_vaccinations(
     Raises ``ValueError`` (forwarded as 422) on any validation problem:
 
       - empty ``campaigns`` list when the block is present;
-      - missing ``source_compartment`` / ``target_compartment`` on a custom model;
-      - source or target not in ``model.compartments``;
-      - ``source_compartment == target_compartment``;
+      - missing ``flows`` on a model without the V-SEIHR preset;
+      - any flow's ``source`` or non-null ``target`` not in ``model.compartments``;
       - ``target_age_groups`` referencing an unknown age-group label.
     """
     if config is None or not config.campaigns:
@@ -60,7 +62,9 @@ def apply_vaccinations(
             raise ValueError("'vaccination.campaigns' must contain at least one entry")
         return
 
-    source, target = _resolve_source_target(config, preset, list(model.compartments))
+    flows = _resolve_flows(config, preset, list(model.compartments))
+    denom_sources = tuple(flow.source for flow in flows)
+    flows_with_target = [flow for flow in flows if flow.target is not None]
 
     age_names = [str(name) for name in model.population.Nk_names]
     n_groups = model.population.num_groups
@@ -80,63 +84,51 @@ def apply_vaccinations(
 
     rate_fn = make_vaccination_rate_fn(resolved, n_groups)
     register_vaccination_kind(model, rate_fn)
-    model.add_transition(
-        source=source,
-        target=target,
-        kind="vaccination_count",
-        params={"source": source},
-    )
+    for flow in flows_with_target:
+        assert flow.target is not None  # narrowed by the filter above
+        model.add_transition(
+            source=flow.source,
+            target=flow.target,
+            kind="vaccination_count",
+            params={"source": flow.source, "denominator_sources": denom_sources},
+        )
 
 
-def _resolve_source_target(
+def _resolve_flows(
     config: VaccinationConfig,
     preset: str | None,
     compartments: list[str],
-) -> tuple[str, str]:
-    """Pick the source/target compartments, defaulting for V-SEIHR.
+) -> list[CompartmentFlow]:
+    """Pick the flows for this block, defaulting for V-SEIHR.
 
-    - V-SEIHR: defaults to ``Susceptible`` / ``Susceptible_vax``; the user
-      may override (e.g. to drive a booster flow on a custom V-SEIHR-derived
-      model).
-    - Other presets / custom models: both must be supplied.
-    - Both names must exist in ``model.compartments`` and be distinct.
+    - V-SEIHR: defaults to ``[{Susceptible -> Susceptible_vax}]`` when
+      ``flows`` is omitted. The user may override (e.g. to add a dose sink or
+      a second source/target pair on a custom V-SEIHR-derived model).
+    - Other presets / custom models: ``flows`` must be supplied.
+    - Every ``source`` and non-null ``target`` must exist in
+      ``model.compartments``.
     """
-    source = config.source_compartment
-    target = config.target_compartment
-    if preset == "V-SEIHR":
-        if source is None:
-            source = _V_SEIHR_DEFAULT_SOURCE
-        if target is None:
-            target = _V_SEIHR_DEFAULT_TARGET
-    if source is None or target is None:
-        missing = [
-            name
-            for name, value in (
-                ("source_compartment", source),
-                ("target_compartment", target),
+    if config.flows is not None:
+        flows = list(config.flows)
+    elif preset == "V-SEIHR":
+        flows = list(_V_SEIHR_DEFAULT_FLOWS)
+    else:
+        raise ValueError(
+            "'vaccination.flows' is required for models without the V-SEIHR preset"
+        )
+
+    for i, flow in enumerate(flows):
+        if flow.source not in compartments:
+            raise ValueError(
+                f"'vaccination.flows[{i}].source' = {flow.source!r} is not in "
+                f"model.compartments; available: {compartments}"
             )
-            if value is None
-        ]
-        raise ValueError(
-            "'vaccination' requires "
-            + " and ".join(repr(m) for m in missing)
-            + " for models without the V-SEIHR preset"
-        )
-    if source not in compartments:
-        raise ValueError(
-            f"'vaccination.source_compartment' = {source!r} is not in "
-            f"model.compartments; available: {compartments}"
-        )
-    if target not in compartments:
-        raise ValueError(
-            f"'vaccination.target_compartment' = {target!r} is not in "
-            f"model.compartments; available: {compartments}"
-        )
-    if source == target:
-        raise ValueError(
-            "'vaccination.source_compartment' and 'vaccination.target_compartment' must be distinct"
-        )
-    return source, target
+        if flow.target is not None and flow.target not in compartments:
+            raise ValueError(
+                f"'vaccination.flows[{i}].target' = {flow.target!r} is not in "
+                f"model.compartments; available: {compartments}"
+            )
+    return flows
 
 
 def _resolve_age_indices(

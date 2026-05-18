@@ -1,9 +1,17 @@
 """Vaccination custom transition kind and per-strategy schedule builders.
 
 Adds a ``vaccination_count`` transition kind to an epydemix model. The kind's
-rate function reads the current source-compartment population at each step
-and returns a per-age-group rate that delivers ``daily_doses(t) * dt`` doses,
-split across the target age groups proportional to current susceptibility.
+rate function reads the current populations of every source compartment
+competing for doses (``denominator_sources`` from the transition params) and
+returns a per-age-group rate that delivers ``daily_doses(t) * dt`` doses,
+split across the target age groups proportional to the **eligible pool**
+(the sum of those source populations).
+
+When ``denominator_sources`` contains a single name, the denominator
+collapses to the classical single-source form ``S(t)``. Multiple names model
+dose competition across compartments: e.g. ``("S", "R")`` reproduces the
+upstream epydemix tutorial's ``D / (S + R)`` rate when only ``S`` carries a
+target.
 
 Each rollout strategy reduces to producing a length-``T`` ``daily_doses_at_t``
 schedule; the rate function is strategy-agnostic. For v1 only ``flat_count``
@@ -47,26 +55,41 @@ def make_vaccination_rate_fn(
     """Build the rate function for the ``vaccination_count`` transition kind.
 
     The returned function is closed over the precomputed schedules. The
-    simulator's per-step cost is one array index + one slice + one division
-    per active campaign. Inactive steps (schedule value zero) short-circuit.
+    simulator's per-step cost is one slice + one sum per source compartment
+    in the eligible pool, then one division per active campaign. Inactive
+    steps (schedule value zero) short-circuit.
 
     The rate function signature matches what epydemix calls at each step:
-    ``rate_fn(params, data)``. ``params`` carries ``{"source": <compartment>}``
-    so the function can pull the current source-compartment population from
-    ``data["pop"]`` without a global lookup.
+    ``rate_fn(params, data)``. ``params`` carries:
+
+      - ``"source"``: this transition's source compartment (the one the
+        binomial draws against); kept so the simulator can identify which
+        compartment is being depleted.
+      - ``"denominator_sources"``: tuple of compartment names whose summed
+        populations form the rate denominator. Single-element = perfect
+        targeting; multi-element = dose competition (sinks and/or multiple
+        targets sharing one budget).
+
+    The same campaign-level rate applies to every transition that shares
+    these ``denominator_sources``: each ``add_transition`` call closes over
+    the same per-step ``r_c(t)``, and per-source binomial draws split the
+    budget proportional to each source's live population.
     """
 
     def rate_fn(params, data):
         t = data["t"]
-        source = params["source"]
-        pop_source = data["pop"][data["comp_indices"][source]]  # (N,)
+        denom_sources = params["denominator_sources"]
+        pop = data["pop"]
+        comp_indices = data["comp_indices"]
         rate = np.zeros(n_groups, dtype=np.float64)
+        # Materialize the per-source population slices once per call.
+        pops = [pop[comp_indices[name]] for name in denom_sources]
         for camp in campaigns:
             doses_t = camp.daily_doses_at_t[t]
             if doses_t <= 0:
                 continue
             tgt = camp.target_age_indices
-            s_sum = float(pop_source[tgt].sum())
+            s_sum = float(sum(p[tgt].sum() for p in pops))
             if s_sum > 0:
                 rate[tgt] += doses_t / s_sum
         return rate

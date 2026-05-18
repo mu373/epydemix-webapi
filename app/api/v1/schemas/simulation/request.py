@@ -2,7 +2,7 @@
 
 from typing import Annotated, Any, Literal, TypeAlias
 
-from pydantic import BaseModel, BeforeValidator, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
 from .....presets import preset_names
 from .transforms import ParameterTransformConfig
@@ -405,26 +405,65 @@ class VaccinationCampaignConfig(BaseModel):
         return self
 
 
+class CompartmentFlow(BaseModel):
+    """One compartment competing for doses, with an optional vaccinated target.
+
+    A flow declares a `source` compartment that contributes to the rate
+    denominator (the eligible pool that competes for the campaign's doses).
+    If `target` is set, vaccinated individuals move `source -> target` and
+    transitions are emitted. If `target` is `null`, the source acts as a
+    **dose sink**: it absorbs its share of doses (modeling the impossibility
+    of pre-screening recipients) but no transition is emitted.
+
+    Combining flows lets one block model dose competition across multiple
+    compartments. Examples:
+
+    - `[{S, S_vax}]` -- perfect targeting, denominator = S only.
+    - `[{S, S_vax}, {R, null}]` -- dose waste: denominator = S + R, only
+      S -> S_vax fires (matches the upstream epydemix tutorial).
+    - `[{S, S_vax}, {S_2, S_2_vax}]` -- one budget shared across two
+      susceptible strata; each fires its own transition.
+    """
+
+    source: str = Field(..., description="Compartment competing for doses.")
+    target: str | None = Field(
+        default=None,
+        description=(
+            "Compartment vaccinated individuals move to. `null` marks the "
+            "source as a dose sink: it contributes to the rate denominator "
+            "but no transition is emitted."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _validate_distinct(self) -> "CompartmentFlow":
+        if self.target is not None and self.source == self.target:
+            raise ValueError(
+                f"flow `source` and `target` must be distinct (got both = {self.source!r})"
+            )
+        return self
+
+
 class VaccinationConfig(BaseModel):
     """Vaccination rollout block.
 
-    For the `V-SEIHR` preset, `source_compartment` / `target_compartment`
-    default to `Susceptible` / `Susceptible_vax`. For custom models both are
-    required and must reference existing compartments.
+    `flows` declares which compartments compete for doses and which of them
+    actually transition. For the `V-SEIHR` preset it defaults to
+    `[{source: 'Susceptible', target: 'Susceptible_vax'}]`. Custom models
+    must supply it explicitly.
     """
 
-    source_compartment: str | None = Field(
+    model_config = ConfigDict(extra="forbid")
+
+    flows: list[CompartmentFlow] | None = Field(
         default=None,
         description=(
-            "Compartment to draw vaccinees from. Required for custom models; "
-            "defaults to `Susceptible` for the `V-SEIHR` preset."
-        ),
-    )
-    target_compartment: str | None = Field(
-        default=None,
-        description=(
-            "Compartment vaccinated individuals move to. Required for custom models; "
-            "defaults to `Susceptible_vax` for the `V-SEIHR` preset."
+            "Compartments competing for doses, each with an optional `target`. "
+            "Sources without a `target` act as dose sinks (contribute to the "
+            "rate denominator but emit no transition). At least one flow must "
+            "have a non-null `target`. Defaults to "
+            "`[{source: 'Susceptible', target: 'Susceptible_vax'}]` for the "
+            "`V-SEIHR` preset; required for custom models."
         ),
     )
     campaigns: list[VaccinationCampaignConfig] = Field(
@@ -435,6 +474,26 @@ class VaccinationConfig(BaseModel):
             "schedules add."
         ),
     )
+
+    @model_validator(mode="after")
+    def _validate_flows(self) -> "VaccinationConfig":
+        if self.flows is None:
+            return self
+        if not self.flows:
+            raise ValueError("'vaccination.flows' must contain at least one entry")
+        if not any(flow.target is not None for flow in self.flows):
+            raise ValueError(
+                "'vaccination.flows' must include at least one entry with a non-null 'target'"
+            )
+        sources = [flow.source for flow in self.flows]
+        if len(set(sources)) != len(sources):
+            raise ValueError("'vaccination.flows' entries must have unique 'source' values")
+        targets = [flow.target for flow in self.flows if flow.target is not None]
+        if len(set(targets)) != len(targets):
+            raise ValueError(
+                "'vaccination.flows' entries must have unique non-null 'target' values"
+            )
+        return self
 
 
 class SimulationRequest(BaseModel):

@@ -6,8 +6,11 @@ presets. Each conversion is a ``(derived, source, expression)`` triple; when
 the source is present in the model and the derived is not, the resolver
 injects the expression as a calculated parameter.
 
-Scoped to presets that declare an opt-in list. Custom models retain the
-existing explicit-parameter contract: name-based collisions would break the
+Each preset declares its own ``PARAMETER_CONVERSIONS`` dict so the math is
+visible at the preset module and free to differ between presets (e.g. an
+R0→β formula that depends on the next-generation matrix of the preset's
+infectious compartments). Custom models retain the existing
+explicit-parameter contract: name-based collisions would break the
 custom-model surface, so nothing implicit is injected when ``preset`` is
 ``None``.
 """
@@ -32,38 +35,18 @@ class ParameterConversion:
         when ``source`` is present in ``model.parameters``. Must reference
         ``source`` (and possibly other names available at calc-eval time).
 
-    The derived name is the dict key in ``PARAMETER_CONVERSIONS``; it is not
-    duplicated here.
+    The derived name is the dict key in each preset's ``PARAMETER_CONVERSIONS``;
+    it is not duplicated here.
     """
 
     source: str
     expression: str
 
 
-# Single source of truth for preset-canonical conversions. Keyed by the DERIVED
-# parameter name (i.e. what gets injected into model.parameters as a calc-param).
-# Adding a new conversion = one dict entry; presets opt in by listing the
-# derived name in their registry entry.
-#
-# CONTACT_MATRIX_EIGENVALUE_ALL is a reserved name injected by the calc-param
-# evaluator from the contact matrix; not stored on the model.
-PARAMETER_CONVERSIONS: dict[str, ParameterConversion] = {
-    "incubation_rate": ParameterConversion("incubation_period", "1 / incubation_period"),
-    "recovery_rate": ParameterConversion("infectious_period", "1 / infectious_period"),
-    "hosp_recovery_rate": ParameterConversion(
-        "hospitalization_duration", "1 / hospitalization_duration"
-    ),
-    "waning_rate": ParameterConversion("immunity_duration", "1 / immunity_duration"),
-    "transmission_rate": ParameterConversion(
-        "R0", "R0 * recovery_rate / CONTACT_MATRIX_EIGENVALUE_ALL"
-    ),
-}
-
-
 def resolve_parameter_conversions(
     model_parameters: dict[str, Any],
     user_scalar_names: set[str],
-    enabled_conversions: list[str],
+    conversions: dict[str, ParameterConversion],
 ) -> dict[str, str]:
     """Inject calc-params for source scalars the user supplied on opted-in presets.
 
@@ -82,16 +65,16 @@ def resolve_parameter_conversions(
         Names of scalar/list parameters the user supplied in the request.
         Distinguishes preset defaults from user inputs; preset defaults alone
         do not satisfy the "user passed the derived" precedence rule.
-    enabled_conversions : list[str]
-        DERIVED parameter names the preset opts into. Each must be a key in
-        ``PARAMETER_CONVERSIONS``. Custom models pass ``[]`` to opt out.
+    conversions : dict[str, ParameterConversion]
+        DERIVED parameter name → conversion for the active preset. Custom
+        models pass ``{}`` to opt out.
 
     Returns
     -------
     dict[str, str]
         Derived name → expression. Empty when nothing fires.
 
-    Precedence per derived entry ``conv = PARAMETER_CONVERSIONS[name]``:
+    Precedence per derived entry ``conv = conversions[name]``:
 
     1. If ``name`` is in ``user_scalar_names`` (the user passed the derived
        parameter directly), drop ``conv.source`` from ``model_parameters`` and
@@ -107,8 +90,7 @@ def resolve_parameter_conversions(
     disable handling needed here.
     """
     new_calc_params: dict[str, str] = {}
-    for derived_name in enabled_conversions:
-        conv = PARAMETER_CONVERSIONS[derived_name]
+    for derived_name, conv in conversions.items():
         if derived_name in user_scalar_names:
             model_parameters.pop(conv.source, None)
             continue

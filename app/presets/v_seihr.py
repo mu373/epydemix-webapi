@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from epydemix.model.epimodel import EpiModel
 
+from ..utils.parameter_conversions import ParameterConversion
+
 
 DESCRIPTION: str = (
     "Vaccinated SEIHR model with parallel unvaccinated/vaccinated compartments. "
@@ -98,13 +100,19 @@ TRANSITIONS: list[dict] = [
 ]
 
 
-PARAMETER_CONVERSIONS: list[str] = [
-    "incubation_rate",
-    "recovery_rate",
-    "hosp_recovery_rate",
-    "waning_rate",
-    "transmission_rate",
-]
+# Friendlier source inputs the user can supply instead of the rate-form
+# defaults. Resolved by ``app.utils.parameter_conversions``.
+PARAMETER_CONVERSIONS: dict[str, ParameterConversion] = {
+    "incubation_rate": ParameterConversion("incubation_period", "1 / incubation_period"),
+    "recovery_rate": ParameterConversion("infectious_period", "1 / infectious_period"),
+    "hosp_recovery_rate": ParameterConversion(
+        "hospitalization_duration", "1 / hospitalization_duration"
+    ),
+    "waning_rate": ParameterConversion("immunity_duration", "1 / immunity_duration"),
+    "transmission_rate": ParameterConversion(
+        "R0", "R0 * recovery_rate / CONTACT_MATRIX_EIGENVALUE_ALL"
+    ),
+}
 
 
 PRESET_CALC_PARAMETERS: dict[str, str] = {

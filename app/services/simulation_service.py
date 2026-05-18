@@ -546,14 +546,14 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
         apply_age_varying_parameters(model, list_params)
 
         # Inject preset-scoped parameter conversions (period→rate, R0→β).
-        # Custom models (no preset) opt out: pass [] so nothing is injected.
+        # Custom models (no preset) opt out: pass {} so nothing is injected.
         preset_def = PRESETS[request.model.preset] if request.model.preset else None
-        enabled_conversions = preset_def.parameter_conversions if preset_def else []
+        conversions = preset_def.parameter_conversions if preset_def else {}
         user_scalar_names = {
             k for k, v in (request.model.parameters or {}).items() if not isinstance(v, str)
         }
         converted = resolve_parameter_conversions(
-            model.parameters, user_scalar_names, enabled_conversions
+            model.parameters, user_scalar_names, conversions
         )
         # User calc-params still win over registry-injected conversions on collision.
         expr_params = {**converted, **expr_params}

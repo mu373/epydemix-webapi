@@ -25,6 +25,7 @@ from typing import Callable
 
 from epydemix.model.epimodel import EpiModel
 
+from ..utils.parameter_conversions import ParameterConversion
 from . import seir, sir, sis, v_seihr
 
 
@@ -39,8 +40,8 @@ class PresetDefinition:
       - ``default_parameters``: scalar (or age-varying) defaults shown in
         ``GET /models/presets``.
       - ``transitions``: structured transition listing for the ``/presets`` payload.
-      - ``parameter_conversions``: DERIVED parameter names this preset opts into
-        for ``resolve_parameter_conversions`` (see
+      - ``parameter_conversions``: derived-name → ``ParameterConversion`` for
+        the period→rate / R0→β substitutions this preset accepts (see
         ``app.utils.parameter_conversions``). Empty = preset opts out.
       - ``build_model``: callable. Receives a dict of user-supplied scalar
         parameters (preset defaults are merged inside). Returns
@@ -53,7 +54,7 @@ class PresetDefinition:
     compartments: list[str]
     default_parameters: dict[str, float | list[float]]
     transitions: list[dict]
-    parameter_conversions: list[str]
+    parameter_conversions: dict[str, ParameterConversion]
     build_model: Callable[[dict[str, float]], tuple[EpiModel, dict[str, str]]]
 
 
@@ -64,7 +65,7 @@ PRESETS: dict[str, PresetDefinition] = {
         compartments=sir.COMPARTMENTS,
         default_parameters=dict(sir.DEFAULT_PARAMETERS),
         transitions=list(sir.TRANSITIONS),
-        parameter_conversions=list(sir.PARAMETER_CONVERSIONS),
+        parameter_conversions=dict(sir.PARAMETER_CONVERSIONS),
         build_model=sir.build_sir_model,
     ),
     "SEIR": PresetDefinition(
@@ -73,7 +74,7 @@ PRESETS: dict[str, PresetDefinition] = {
         compartments=seir.COMPARTMENTS,
         default_parameters=dict(seir.DEFAULT_PARAMETERS),
         transitions=list(seir.TRANSITIONS),
-        parameter_conversions=list(seir.PARAMETER_CONVERSIONS),
+        parameter_conversions=dict(seir.PARAMETER_CONVERSIONS),
         build_model=seir.build_seir_model,
     ),
     "SIS": PresetDefinition(
@@ -82,7 +83,7 @@ PRESETS: dict[str, PresetDefinition] = {
         compartments=sis.COMPARTMENTS,
         default_parameters=dict(sis.DEFAULT_PARAMETERS),
         transitions=list(sis.TRANSITIONS),
-        parameter_conversions=list(sis.PARAMETER_CONVERSIONS),
+        parameter_conversions=dict(sis.PARAMETER_CONVERSIONS),
         build_model=sis.build_sis_model,
     ),
     "V-SEIHR": PresetDefinition(
@@ -91,7 +92,7 @@ PRESETS: dict[str, PresetDefinition] = {
         compartments=list(v_seihr.COMPARTMENTS),
         default_parameters=dict(v_seihr.DEFAULT_PARAMETERS),
         transitions=list(v_seihr.TRANSITIONS),
-        parameter_conversions=list(v_seihr.PARAMETER_CONVERSIONS),
+        parameter_conversions=dict(v_seihr.PARAMETER_CONVERSIONS),
         build_model=v_seihr.build_v_seihr_model,
     ),
 }

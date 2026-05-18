@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from epydemix.model.epimodel import EpiModel
 
+from ..utils.parameter_conversions import ParameterConversion
+
 
 COMPARTMENTS: list[str] = ["Susceptible", "Exposed", "Infected", "Recovered"]
 
@@ -39,11 +41,15 @@ TRANSITIONS: list[dict] = [
     },
 ]
 
-PARAMETER_CONVERSIONS: list[str] = [
-    "incubation_rate",
-    "recovery_rate",
-    "transmission_rate",
-]
+# Friendlier source inputs the user can supply instead of the rate-form
+# defaults above. Resolved by ``app.utils.parameter_conversions``.
+PARAMETER_CONVERSIONS: dict[str, ParameterConversion] = {
+    "incubation_rate": ParameterConversion("incubation_period", "1 / incubation_period"),
+    "recovery_rate": ParameterConversion("infectious_period", "1 / infectious_period"),
+    "transmission_rate": ParameterConversion(
+        "R0", "R0 * recovery_rate / CONTACT_MATRIX_EIGENVALUE_ALL"
+    ),
+}
 
 
 def build_seir_model(

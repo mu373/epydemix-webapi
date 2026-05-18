@@ -127,3 +127,21 @@ pre.language-text code {
 .tabs-container > div[role='tabpanel'] > :last-child {
   margin-bottom: 0;
 }
+
+/* Neutralize the default blue tint on <details className="quiet"> blocks so
+ * embedded examples and derivations read as quiet asides rather than info
+ * admonitions. Docusaurus's <Details> component applies .alert--info, which
+ * drives the background via --ifm-alert-background-color; override those vars
+ * instead of background-color so the cascade actually wins. Opt-in via
+ * className="quiet". */
+.markdown details.quiet {
+  --ifm-alert-background-color: var(--ifm-background-color);
+  --ifm-alert-background-color-highlight: transparent;
+  --ifm-alert-border-color: var(--ifm-color-emphasis-300);
+  --ifm-alert-foreground-color: var(--ifm-color-content);
+  --docusaurus-details-decoration-color: var(--ifm-color-emphasis-400);
+}
+
+[data-theme='light'] .markdown details.quiet {
+  --ifm-alert-background-color: #fff;
+}

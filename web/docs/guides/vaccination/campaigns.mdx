@@ -9,7 +9,7 @@ import CurlBlock from '@site/src/components/CurlBlock';
 
 <EndpointSelector />
 
-To set up vaccination campaigns, you define the `vaccination` block in a simulation request. This block contains a list of one or more **campaigns**, each with its own time window, target age groups, and dose-rollout schedule. For the concepts behind modeling vaccination, see the [Overview](./overview.mdx).
+This page covers the per-campaign fields and rollout strategies inside the `vaccination` block. For the surrounding block structure and `flows` configuration, see the [Overview](./overview.mdx).
 
 ## Quick start
 
@@ -45,18 +45,7 @@ The fastest path is using the `V-SEIHR` model preset with a flat-count vaccinati
   }'`}
 </CurlBlock>
 
-In the response, the `results.transitions.data` payload carries a `Susceptible_to_Susceptible_vax` series you can inspect to confirm doses landed on the right days and age groups.
-
-## `vaccination` block
-
-For custom models, you need to define `source_compartment` and `target_compartment`, specifying how the vaccination moves the population from one compartment to another. Both compartment names must exist in the model and be distinct. On `V-SEIHR` the defaults cover the common case, but you can still override manually.
-
-| Field | Required | Description |
-|---|---|---|
-| `source_compartment` | for custom models | Compartment to draw vaccinees from. Defaults to `Susceptible` on the `V-SEIHR` preset. |
-| `target_compartment` | for custom models | Compartment vaccinated individuals move to. Defaults to `Susceptible_vax` on the `V-SEIHR` preset. |
-| `campaigns` | yes (≥1) | List of campaigns (defined below). Each carries its own rollout strategy; multiple campaigns may overlap and their per-step dose schedules add. |
-
+The response includes the resulting `Susceptible_to_Susceptible_vax` transition series; see [Inspecting the rollout](./overview.mdx#inspecting-the-rollout) for what to look at.
 
 ## Campaign fields
 
@@ -67,26 +56,39 @@ Each entry in `campaigns` describes one rollout:
 | `name` | no | Free-text label echoed back in `metadata.vaccination`. Handy for keeping multiple overlapping campaigns straight. |
 | `start_date` | yes | Campaign start (`YYYY-MM-DD`), inclusive. |
 | `end_date` | yes | Campaign end (`YYYY-MM-DD`), inclusive. Must be `≥ start_date`. |
-| `rollout` | yes | Dose-schedule strategy. v1 supports `flat_count`; the `type` field is the discriminator. |
+| `rollout` | yes | Rollout strategy. v1 supports `flat_count`; the `type` field is the discriminator. See [Rollout strategies](#rollout-strategies). |
 | `target_age_groups` | no | List of age-group labels (e.g. `["50-64", "65+"]`). Must be unique and must match labels from the resolved population. `null` (the default) means all groups. |
 
 ## Rollout strategies
 
 ### Flat rollout (count)
 
-A constant `daily_doses` count delivered every day across the campaign window, distributed proportionally to the susceptible population in each targeted age group. The transitions actually delivered per step may fall short of `daily_doses` once the donor pool is depleted; see [Dose allocation](./overview.mdx#dose-allocation) for the details.
+A constant `daily_doses` count is scheduled every day across the campaign window, distributed proportionally to the source-compartment population in each targeted age group.
+
+"Flat" refers to the *scheduled* budget, not the *delivered* curve: as the source pool depletes (through vaccination, infections, etc.), the actual daily delivered count can drift below `daily_doses`. If the live pool drops below `daily_doses` per step, the binomial draw saturates; if it's empty, no doses are delivered that step.
 
 | Field | Required | Description |
 |---|---|---|
 | `type` | yes | Literal `"flat_count"`. The discriminator. |
-| `daily_doses` | yes | Target doses delivered per day. Must be `> 0`. Naturally capped per group by the available source-compartment population at each step. |
+| `daily_doses` | yes | Target doses delivered per day. Must be `> 0`. |
+
+<details className="quiet">
+<summary>Example</summary>
+
+Here is an example of V-SEIHR model run on a 1,000,000 homogeneous population ($R_0 = 1.4$, $\mathrm{VE}_S = 0.85$, $\mathrm{VE}_H = 0.9$, 0.02% initial infections, no waning), with a single campaign scheduled at 5,000 doses/day from Feb 1 to Oct 15, 2025 (100 stochastic runs, median plotted).
+
+![Flat-count rollout: scheduled vs delivered, plus the susceptible pool depleting through the campaign window](/img/vaccination/flat-count-depletion.svg)
+
+The scheduled budget (dashed) holds at 5,000/day across the entire window, but the delivered count drops to zero around the end of May as $S$ is exhausted by the epidemic plus vaccination.
+
+</details>
 
 
 ## Custom-model usage
 
-You can define a custom model that incorporates the effects of vaccination and takes advantage of the `vaccination` block. What you need is a model whose compartments include both a source and a vaccinated target, and (typically) a vaccinated layer that mirrors the unvaccinated transitions with vaccine-efficacy-attenuated rates. The block then drives doses across the single `source_compartment → target_compartment` flow. You can then model the effects of vaccination through transformed parameters (e.g. severity reduction) and additional transitions.
+You can define a custom model that incorporates the effects of vaccination and takes advantage of the `vaccination` block. What you need is a model whose compartments include both a source and a vaccinated target, and (typically) a vaccinated layer that mirrors the unvaccinated transitions with vaccine-efficacy-attenuated rates. The block then drives doses across the `source → target` pairs declared in `flows`. You can model the effects of vaccination through transformed parameters (e.g. severity reduction) and additional transitions.
 
-On a custom model the `source_compartment` and `target_compartment` fields are **required**; there is no default. Both names must reference compartments declared in `model.compartments`, and they must be distinct.
+On a custom model the `flows` field is **required**; there is no default. Every `source` and (non-null) `target` must reference a compartment declared in `model.compartments`.
 
 <CurlBlock>
 {`curl -X POST BASE_URL/simulations \\
@@ -109,8 +111,7 @@ On a custom model the `source_compartment` and `target_compartment` fields are *
     "population": {"name": "Italy"},
     "simulation": {"start_date": "2025-01-01", "end_date": "2025-06-30", "Nsim": 10},
     "vaccination": {
-      "source_compartment": "S",
-      "target_compartment": "V",
+      "flows": [{"source": "S", "target": "V"}],
       "campaigns": [
         {
           "start_date": "2025-02-01",

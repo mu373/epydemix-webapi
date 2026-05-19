@@ -7,7 +7,7 @@ population: ODE-match in expectation, R0 monotonicity, and subcritical dieout.
 import numpy as np
 import pytest
 
-from ._dynamics import median_series, rk4_sir
+from ._dynamics import median_series, ode_sir
 
 N = 100_000
 
@@ -60,7 +60,7 @@ def test_homogeneous_sir_matches_ode_solution(client):
     T = len(S_med)
 
     S0, I0 = float(S_med[0]), float(I_med[0])
-    S_ode, I_ode = rk4_sir(BETA, GAMMA, N, S0, I0, N - S0 - I0, T)
+    S_ode, I_ode = ode_sir(BETA, GAMMA, N, S0, I0, N - S0 - I0, T)
 
     peak_day_sim = int(np.argmax(I_med))
     peak_day_ode = int(np.argmax(I_ode))

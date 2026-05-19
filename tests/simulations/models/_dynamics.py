@@ -7,9 +7,24 @@ epidemiological behavior (peak, final size, monotonicity over R0, ...).
 from __future__ import annotations
 
 import numpy as np
+from scipy.integrate import solve_ivp
 
 
-def rk4_sir(
+def _integrate(rhs, y0: list[float], T: int) -> np.ndarray:
+    """Integrate `rhs(t, y)` over `T` daily points starting at t=0. Returns y[:, T]."""
+    sol = solve_ivp(
+        rhs,
+        t_span=(0.0, T - 1),
+        y0=y0,
+        t_eval=np.arange(T),
+        method="RK45",
+        rtol=1e-8,
+        atol=1e-6,
+    )
+    return sol.y
+
+
+def ode_sir(
     beta: float,
     gamma: float,
     N: float,
@@ -17,30 +32,42 @@ def rk4_sir(
     I0: float,
     R0: float,
     T: int,
-    h: float = 0.05,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """RK4-integrate homogeneous SIR for `T` days. Returns daily (S, I)."""
+    """Integrate homogeneous SIR for `T` days. Returns daily (S, I)."""
 
-    def deriv(s, i):
-        infection = beta * s * i / N
-        return -infection, infection - gamma * i
+    def rhs(_t, y):
+        S, I, _R = y
+        infection = beta * S * I / N
+        return [-infection, infection - gamma * I, gamma * I]
 
-    s, i, r = S0, I0, R0
-    S = np.empty(T)
-    I = np.empty(T)
-    S[0], I[0] = s, i
-    steps = int(round(1.0 / h))
-    for day in range(1, T):
-        for _ in range(steps):
-            k1s, k1i = deriv(s, i)
-            k2s, k2i = deriv(s + h * k1s / 2, i + h * k1i / 2)
-            k3s, k3i = deriv(s + h * k2s / 2, i + h * k2i / 2)
-            k4s, k4i = deriv(s + h * k3s, i + h * k3i)
-            s += h * (k1s + 2 * k2s + 2 * k3s + k4s) / 6
-            i += h * (k1i + 2 * k2i + 2 * k3i + k4i) / 6
-            r += h * gamma * (i)  # not used; kept for symmetry
-        S[day], I[day] = s, i
-    return S, I
+    y = _integrate(rhs, [S0, I0, R0], T)
+    return y[0], y[1]
+
+
+def ode_seir(
+    beta: float,
+    sigma: float,
+    gamma: float,
+    N: float,
+    S0: float,
+    E0: float,
+    I0: float,
+    R0: float,
+    T: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Integrate homogeneous SEIR for `T` days. Returns daily (S, E, I).
+
+    `sigma` is the incubation rate (1 / latent period).
+    """
+
+    def rhs(_t, y):
+        S, E, I, _R = y
+        infection = beta * S * I / N
+        progression = sigma * E
+        return [-infection, infection - progression, progression - gamma * I, gamma * I]
+
+    y = _integrate(rhs, [S0, E0, I0, R0], T)
+    return y[0], y[1], y[2]
 
 
 def median_series(data: dict, compartment: str, age_group: str = "A") -> np.ndarray:

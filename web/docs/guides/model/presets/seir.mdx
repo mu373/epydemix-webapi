@@ -24,13 +24,24 @@ The Susceptible-Exposed-Infected-Recovered model. Extends SIR with an exposed (l
 - **Exposed &rarr; Infected**: spontaneous at `incubation_rate`
 - **Infected &rarr; Recovered**: spontaneous at `recovery_rate`
 
-## Default parameters
+## Parameters
 
-| Parameter | Default | Description |
-|---|---|---|
-| `transmission_rate` | 0.3 | Rate at which susceptible individuals become exposed through contact with infectious individuals |
-| `incubation_rate` | 0.2 | Rate of progression from exposed to infectious (1 / incubation period in days) |
-| `recovery_rate` | 0.1 | Rate at which infected individuals recover (1 / infectious period in days) |
+Some parameters can be provided in multiple forms. For example, you can pass `R0` instead of `transmission_rate`, `incubation_period` instead of `incubation_rate`, or `infectious_period` instead of `recovery_rate`, and they are automatically converted. If both forms are supplied, the rate form wins and the source is dropped silently. See [calculated parameters](../parameters/overview.mdx#reserved-names) for the conversion machinery.
+
+| Parameter | Status | Default | Description |
+|---|---|---|---|
+| `transmission_rate` | Default | `0.3` | $\beta$. Per-contact transmission rate. |
+| `R0` | Alternative to `transmission_rate` | unset | Basic reproduction number. When passed, `transmission_rate = R0 * recovery_rate / CONTACT_MATRIX_EIGENVALUE_ALL`. |
+| `incubation_rate` | Default | `0.2` | E &rarr; I rate. |
+| `incubation_period` | Alternative to `incubation_rate` | unset | Days from exposure to infectiousness. When passed, `incubation_rate = 1 / incubation_period`. |
+| `recovery_rate` | Default | `0.1` | I &rarr; R rate. |
+| `infectious_period` | Alternative to `recovery_rate` | unset | Days infectious. When passed, `recovery_rate = 1 / infectious_period`. |
+
+## Examples
+
+Both examples below seed 0.1% of the population as `Exposed` at t=0 via an explicit `initial_conditions` block; the rest of the population starts in `Susceptible`. See [Initial Conditions](../../initial-conditions.mdx) for other seeding options.
+
+### Rate form
 
 <CurlBlock>
 {`curl -X POST BASE_URL/simulations \\
@@ -41,6 +52,29 @@ The Susceptible-Exposed-Infected-Recovered model. Extends SIR with an exposed (l
       "parameters": {"transmission_rate": 0.3, "incubation_rate": 0.2, "recovery_rate": 0.1}
     },
     "population": {"name": "United_States"},
-    "simulation": {"start_date": "2024-01-01", "end_date": "2024-06-01", "Nsim": 10}
+    "simulation": {"start_date": "2024-01-01", "end_date": "2024-06-01", "Nsim": 10},
+    "initial_conditions": {
+      "method": "percentage",
+      "initial_percentages": {"Exposed": 0.1}
+    }
+  }'`}
+</CurlBlock>
+
+### Using `R0` and period forms
+
+<CurlBlock>
+{`curl -X POST BASE_URL/simulations \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": {
+      "preset": "SEIR",
+      "parameters": {"R0": 2.5, "incubation_period": 5.0, "infectious_period": 10.0}
+    },
+    "population": {"name": "United_States"},
+    "simulation": {"start_date": "2024-01-01", "end_date": "2024-06-01", "Nsim": 10},
+    "initial_conditions": {
+      "method": "percentage",
+      "initial_percentages": {"Exposed": 0.1}
+    }
   }'`}
 </CurlBlock>

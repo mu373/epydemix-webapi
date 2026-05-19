@@ -126,8 +126,6 @@ Limit cases worth remembering:
 - $\mathrm{VE_H} = 1$: vaccinated infected never hospitalize ($p_H^{\text{vax}} = 0$); all flow through `Infected_vax → Recovered_vax`.
 - $\mathrm{VE_H} = 0$: vaccinated infected hospitalize at the same rate as unvaccinated.
 
-See the [Mean-field dynamics](../../vaccination/overview.mdx#mean-field-dynamics) section of the vaccination guide for the source/target ODE pair that the `vaccination` block adds on top of the transitions above.
-
 ## Parameters
 
 Some parameters can be provided in multiple forms. For example, you can provide `infectious_period` instead of `recovery_rate` and it gets automatically converted. If both are sent, the rate form wins and the source is dropped silently. See [calculated parameters](../parameters/overview.mdx#reserved-names) for the conversion machinery.
@@ -152,6 +150,8 @@ The derived parameters (`transmission_rate_vax`, `hosp_proportion_vax`, `I_to_R_
 
 ## Examples
 
+All examples below seed 0.1% of the population as `Infected` at t=0 via an explicit `initial_conditions` block; the rest of the population starts in `Susceptible`, and the `_vax` branch starts at zero. See [Initial Conditions](../../initial-conditions.mdx) for other seeding options.
+
 ### With a vaccination campaign
 
 V-SEIHR with a flat-count vaccination campaign over a three-month window. `VE_S` and `VE_H` drive the protection on the vaccinated branch. See the [Campaigns page](../../vaccination/campaigns.mdx) for the full set of rollout options.
@@ -174,6 +174,10 @@ V-SEIHR with a flat-count vaccination campaign over a three-month window. `VE_S`
     },
     "population": {"name": "United_States"},
     "simulation": {"start_date": "2025-01-01", "end_date": "2025-06-30", "Nsim": 10},
+    "initial_conditions": {
+      "method": "percentage",
+      "initial_percentages": {"Infected": 0.1}
+    },
     "vaccination": {
       "campaigns": [
         {
@@ -205,7 +209,11 @@ Drop the `vaccination` block to get the no-intervention baseline (no vaccination
       }
     },
     "population": {"name": "United_States"},
-    "simulation": {"start_date": "2025-01-01", "end_date": "2025-06-30", "Nsim": 10}
+    "simulation": {"start_date": "2025-01-01", "end_date": "2025-06-30", "Nsim": 10},
+    "initial_conditions": {
+      "method": "percentage",
+      "initial_percentages": {"Infected": 0.1}
+    }
   }'`}
 </CurlBlock>
 
@@ -233,6 +241,10 @@ Apply seasonality to `transmission_rate` (peak January 15, trough July 15, per t
     },
     "population": {"name": "United_States"},
     "simulation": {"start_date": "2025-08-01", "end_date": "2026-07-31", "Nsim": 10},
+    "initial_conditions": {
+      "method": "percentage",
+      "initial_percentages": {"Infected": 0.1}
+    },
     "parameter_transforms": [
       {
         "target_parameter": "transmission_rate",

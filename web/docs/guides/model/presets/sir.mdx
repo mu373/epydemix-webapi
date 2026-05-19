@@ -22,12 +22,20 @@ The Susceptible-Infected-Recovered model. A basic epidemic model where recovered
 - **Susceptible &rarr; Infected**: mediated by `transmission_rate` and the number of Infected individuals
 - **Infected &rarr; Recovered**: spontaneous at `recovery_rate`
 
-## Default parameters
+## Parameters
 
-| Parameter | Default | Description |
-|---|---|---|
-| `transmission_rate` | 0.3 | Rate at which susceptible individuals become infected through contact with infectious individuals |
-| `recovery_rate` | 0.1 | Rate at which infected individuals recover (1 / infectious period in days) |
+Some parameters can be provided in multiple forms. For example, you can pass `R0` instead of `transmission_rate`, or `infectious_period` instead of `recovery_rate`, and they are automatically converted. If both forms are supplied, the rate form wins and the source is dropped silently. See [calculated parameters](../parameters/overview.mdx#reserved-names) for the conversion machinery.
+
+| Parameter | Status | Default | Description |
+|---|---|---|---|
+| `transmission_rate` | Default | `0.3` | $\beta$. Per-contact transmission rate. |
+| `R0` | Alternative to `transmission_rate` | unset | Basic reproduction number. When passed, `transmission_rate = R0 * recovery_rate / CONTACT_MATRIX_EIGENVALUE_ALL`. |
+| `recovery_rate` | Default | `0.1` | I &rarr; R rate. |
+| `infectious_period` | Alternative to `recovery_rate` | unset | Days infectious. When passed, `recovery_rate = 1 / infectious_period`. |
+
+## Examples
+
+### Rate form
 
 <CurlBlock>
 {`curl -X POST BASE_URL/simulations \\
@@ -37,7 +45,43 @@ The Susceptible-Infected-Recovered model. A basic epidemic model where recovered
       "preset": "SIR",
       "parameters": {"transmission_rate": 0.3, "recovery_rate": 0.1}
     },
-    "population": {"name": "Italy"},
+    "population": {"name": "United_States"},
     "simulation": {"start_date": "2024-01-01", "end_date": "2024-04-01", "Nsim": 10}
+  }'`}
+</CurlBlock>
+
+### Using `R0` and `infectious_period`
+
+<CurlBlock>
+{`curl -X POST BASE_URL/simulations \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": {
+      "preset": "SIR",
+      "parameters": {"R0": 2.5, "infectious_period": 10.0}
+    },
+    "population": {"name": "United_States"},
+    "simulation": {"start_date": "2024-01-01", "end_date": "2024-04-01", "Nsim": 10}
+  }'`}
+</CurlBlock>
+
+### Seeding initial conditions (percentage)
+
+Seed 0.1% of the population as `Infected`. The remainder goes to the first compartment (`Susceptible`). Values in `initial_percentages` are percentages, not fractions.
+
+<CurlBlock>
+{`curl -X POST BASE_URL/simulations \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": {
+      "preset": "SIR",
+      "parameters": {"R0": 2.5, "infectious_period": 10.0}
+    },
+    "population": {"name": "United_States"},
+    "simulation": {"start_date": "2024-01-01", "end_date": "2024-04-01", "Nsim": 10},
+    "initial_conditions": {
+      "method": "percentage",
+      "initial_percentages": {"Infected": 0.1}
+    }
   }'`}
 </CurlBlock>

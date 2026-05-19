@@ -43,9 +43,15 @@ We'll use the `SIR` preset. See [Model Presets](./model/presets/overview.mdx) fo
       "start_date": "2024-01-01",
       "end_date": "2024-06-01",
       "Nsim": 10
+    },
+    "initial_conditions": {
+      "method": "percentage",
+      "initial_percentages": {"Infected": 0.1}
     }
   }'`}
 </CurlBlock>
+
+The `initial_conditions` block seeds the compartments at the start of the simulation. Here, 0.1% of the population is placed in `Infected` and the rest in `Susceptible`. Omit the block entirely and ~0.05% of each age group is seeded as `Infected` by default; switch `method` to `"absolute"` to set exact per-age counts. See [Initial Conditions](./initial-conditions.mdx) for the full reference.
 
 ## 4. Read the response
 
@@ -190,3 +196,7 @@ For a quick read of one stat from the response, pipe through [`jq`](https://jqla
 :::tip
 Use the [API Reference](/api-reference) to build and send requests interactively without writing curl commands.
 :::
+
+## Next
+
+Try the same request in the [Playground](./playground.mdx) to iterate on parameters and see plots without leaving the browser.

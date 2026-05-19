@@ -5,6 +5,7 @@ and orchestrating the simulation workflow from request to response.
 """
 
 import uuid
+from typing import Callable
 
 import numpy as np
 from epydemix.model.epimodel import EpiModel
@@ -224,19 +225,26 @@ def setup_population(model: EpiModel, config: PopulationConfig) -> None:
 
 
 def create_initial_conditions(
-    model: EpiModel, config: InitialConditionsConfig | None
+    model: EpiModel,
+    config: InitialConditionsConfig | None,
+    preset_default: Callable[[EpiModel], dict[str, np.ndarray]] | None = None,
 ) -> dict[str, np.ndarray] | None:
     """Create initial conditions dictionary from configuration.
 
     Builds initial conditions either from absolute counts per compartment
-    or from percentages of the total population.
+    or from percentages of the total population. If no config is supplied
+    and the preset provides its own ``default_initial_conditions`` callable,
+    that is used; otherwise we fall through to epydemix's built-in default.
 
     Parameters
     ----------
     model : EpiModel
         EpiModel with population already set, needed for population counts.
     config : InitialConditionsConfig or None
-        Initial conditions configuration. If None, epydemix defaults are used.
+        Initial conditions configuration.
+    preset_default : callable, optional
+        Preset-supplied default initial conditions builder. Invoked only when
+        ``config`` is None.
 
     Returns
     -------
@@ -245,6 +253,8 @@ def create_initial_conditions(
         or None to use epydemix default initial conditions.
     """
     if config is None:
+        if preset_default is not None:
+            return preset_default(model)
         return None
 
     if config.method == "absolute" and config.compartments:
@@ -600,7 +610,11 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
         )
 
         # Create initial conditions
-        initial_conditions = create_initial_conditions(model, request.initial_conditions)
+        initial_conditions = create_initial_conditions(
+            model,
+            request.initial_conditions,
+            preset_default=preset_def.default_initial_conditions if preset_def else None,
+        )
 
         # Create random number generator from seed if provided
         rng = None

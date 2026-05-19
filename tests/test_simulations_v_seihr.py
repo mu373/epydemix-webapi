@@ -234,12 +234,7 @@ def test_v_seihr_hosp_proportion_default_is_age_stratified(client):
 
 
 def test_v_seihr_explicit_initial_conditions(client):
-    """Initial conditions seed Infected and leave _vax compartments empty when requested explicitly.
-
-    Repository-level V-SEIHR default initial conditions are TODO; for now,
-    callers who want a clean unvaccinated start must pass `initial_conditions`
-    explicitly.
-    """
+    """Initial conditions seed Infected and leave _vax compartments empty when requested explicitly."""
     request = _baseline_request()
     request["initial_conditions"] = {
         "method": "percentage",

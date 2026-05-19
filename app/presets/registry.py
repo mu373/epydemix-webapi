@@ -23,6 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+import numpy as np
 from epydemix.model.epimodel import EpiModel
 
 from ..utils.parameter_conversions import ParameterConversion
@@ -56,6 +57,7 @@ class PresetDefinition:
     transitions: list[dict]
     parameter_conversions: dict[str, ParameterConversion]
     build_model: Callable[[dict[str, float]], tuple[EpiModel, dict[str, str]]]
+    default_initial_conditions: Callable[[EpiModel], dict[str, np.ndarray]] | None = None
 
 
 PRESETS: dict[str, PresetDefinition] = {
@@ -94,6 +96,7 @@ PRESETS: dict[str, PresetDefinition] = {
         transitions=list(v_seihr.TRANSITIONS),
         parameter_conversions=dict(v_seihr.PARAMETER_CONVERSIONS),
         build_model=v_seihr.build_v_seihr_model,
+        default_initial_conditions=v_seihr.default_initial_conditions,
     ),
 }
 

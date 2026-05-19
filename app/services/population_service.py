@@ -17,15 +17,21 @@ from epydemix.population.population import (
     load_epydemix_population,
 )
 
+from epydemix.model.epimodel import EpiModel
+
 from ..api.v1.schemas.population import (
     ContactMatrixResponse,
     PopulationDetail,
     PopulationListResponse,
     PopulationSummary,
 )
+from ..api.v1.schemas.simulation import CustomPopulationConfig, PopulationConfig
 from ..config import settings
 
 logger = logging.getLogger(__name__)
+
+
+DEFAULT_LAYERS = ["home", "work", "school", "community"]
 
 
 class PopulationLoadTimeoutError(Exception):
@@ -211,6 +217,43 @@ def _resolve_contacts_source(name: str, contacts_source: str | None) -> str:
     if len(row) > 0 and "primary_contact_source" in df.columns:
         return row.iloc[0]["primary_contact_source"]
     return "mistry_2021"  # fallback default
+
+
+def setup_population(model: EpiModel, config: PopulationConfig) -> None:
+    """Load and set population for the model.
+
+    For builtin populations, loads from the epydemix data repository.
+    For custom populations, builds a Population in-memory from the inline
+    `age_groups` dict and `contact_matrices` dict.
+
+    Parameters
+    ----------
+    model : EpiModel
+        EpiModel to configure with population data.
+    config : BuiltinPopulationConfig or CustomPopulationConfig
+        Population configuration. The discriminator selects the branch.
+    """
+    if isinstance(config, CustomPopulationConfig):
+        # Insertion order of `age_groups` defines the contact-matrix row/col order.
+        names = list(config.age_groups.keys())
+        sizes = [float(config.age_groups[k]) for k in names]
+        population = Population(name=config.name)
+        population.add_population(Nk=sizes, Nk_names=names)
+        for layer_name, matrix in config.contact_matrices.items():
+            population.add_contact_matrix(
+                contact_matrix=np.array(matrix, dtype=float),
+                layer_name=layer_name,
+            )
+        model.set_population(population)
+        return
+
+    population = load_epydemix_population(
+        population_name=config.name,
+        contacts_source=config.contacts_source,
+        layers=config.layers or DEFAULT_LAYERS,
+        age_group_mapping=config.age_group_mapping,
+    )
+    model.set_population(population)
 
 
 def _load_population_cached(

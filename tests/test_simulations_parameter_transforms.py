@@ -551,11 +551,9 @@ def test_simulation_transform_no_aliasing():
         ScaleTransform,
         SimulationConfig,
     )
-    from app.services.simulation_service import (
-        apply_parameter_transforms_sources,
-        create_model,
-        setup_population,
-    )
+    from app.services.model_service import create_model
+    from app.services.parameter_transforms_service import apply_parameter_transforms_sources
+    from app.services.population_service import setup_population
 
     model, _, _ = create_model(ModelConfig(preset="SIR", parameters={"transmission_rate": 1.0}))
     setup_population(model, BuiltinPopulationConfig(name="United_States"))

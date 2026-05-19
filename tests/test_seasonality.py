@@ -172,11 +172,9 @@ def test_balcan_transform_writes_expected_array_into_model():
         ModelConfig,
         SimulationConfig,
     )
-    from app.services.simulation_service import (
-        apply_parameter_transforms_sources,
-        create_model,
-        setup_population,
-    )
+    from app.services.model_service import create_model
+    from app.services.parameter_transforms_service import apply_parameter_transforms_sources
+    from app.services.population_service import setup_population
 
     baseline = 0.3
     val_min, val_max = 0.1, 1.0  # multiplier in [0.1, 1.0]

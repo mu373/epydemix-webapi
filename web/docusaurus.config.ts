@@ -138,6 +138,11 @@ const config: Config = {
           position: 'left',
         },
         {
+          to: '/playground',
+          label: 'Playground',
+          position: 'left',
+        },
+        {
           href: 'https://github.com/mu373/epydemix-webapi',
           label: 'GitHub',
           position: 'right',

@@ -13,8 +13,8 @@ export const TEMPLATES: Template[] = [
   "model": {
     "preset": "SIR",
     "parameters": {
-      "transmission_rate": 0.25,
-      "recovery_rate": 0.1
+      "R0": 2.5,
+      "infectious_period": 10.0
     }
   },
   "population": {
@@ -38,8 +38,8 @@ export const TEMPLATES: Template[] = [
   "model": {
     "preset": "SIR",
     "parameters": {
-      "transmission_rate": 0.25,
-      "recovery_rate": 0.1
+      "R0": 2.5,
+      "infectious_period": 10.0
     }
   },
   "population": {
@@ -72,8 +72,8 @@ export const TEMPLATES: Template[] = [
   "model": {
     "preset": "SIR",
     "parameters": {
-      "transmission_rate": 0.25,
-      "recovery_rate": 0.1
+      "R0": 2.5,
+      "infectious_period": 10.0
     }
   },
   "population": {
@@ -88,6 +88,7 @@ export const TEMPLATES: Template[] = [
     "method": "percentage",
     "initial_percentages": { "Infected": 0.1 } // 0.1%
   },
+  // transmission_rate is derived from R0 in parameter_transforms
   "parameter_transforms": [
     {
       "target_parameter": "transmission_rate",
@@ -108,8 +109,8 @@ export const TEMPLATES: Template[] = [
   "model": {
     "preset": "SIR",
     "parameters": {
-      "transmission_rate": 0.25,
-      "recovery_rate": 0.1
+      "R0": 2.5,
+      "infectious_period": 10.0
     }
   },
   "population": {
@@ -145,9 +146,9 @@ export const TEMPLATES: Template[] = [
   "model": {
     "preset": "SEIR",
     "parameters": {
-      "transmission_rate": 0.25,
-      "incubation_rate": 0.2,
-      "recovery_rate": 0.1
+      "R0": 2.5,
+      "incubation_period": 5.0,
+      "infectious_period": 10.0
     }
   },
   "population": {
@@ -171,8 +172,8 @@ export const TEMPLATES: Template[] = [
   "model": {
     "preset": "SIS",
     "parameters": {
-      "transmission_rate": 0.25,
-      "recovery_rate": 0.1
+      "R0": 2.5,
+      "infectious_period": 10.0
     }
   },
   "population": {
@@ -186,6 +187,48 @@ export const TEMPLATES: Template[] = [
   "initial_conditions": {
     "method": "percentage",
     "initial_percentages": { "Infected": 0.1 } // 0.1%
+  }
+}`,
+  },
+  {
+    name: 'V-SEIHR (vaccination)',
+    description: 'V-SEIHR on the US population with a flat-count vaccination campaign.',
+    requestText: `{
+  "model": {
+    "preset": "V-SEIHR",
+    "parameters": {
+      "R0": 2.5,
+      "incubation_period": 3.0,
+      "infectious_period": 2.5,
+      "hosp_duration": 5.0,
+      "hosp_proportion": [0.002, 0.005, 0.015, 0.05, 0.18],
+      "VE_S": 0.7,
+      "VE_H": 0.85
+    }
+  },
+  "population": {
+    "name": "United_States"
+  },
+  "simulation": {
+    "start_date": "2025-01-01",
+    "end_date": "2025-06-30",
+    "Nsim": 10
+  },
+  "initial_conditions": {
+    "method": "percentage",
+    "initial_percentages": { "Infected": 0.1 } // 0.1%
+  },
+  "vaccination": {
+    "campaigns": [
+      {
+        "start_date": "2025-02-01",
+        "end_date": "2025-04-30",
+        "rollout": {
+          "type": "flat_count",
+          "daily_doses": 100000
+        }
+      }
+    ]
   }
 }`,
   },

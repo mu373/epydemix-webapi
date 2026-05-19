@@ -317,6 +317,40 @@ def test_vaccination_dose_sink_rate_matches_S_over_S_plus_R(client):
     assert series[0] == pytest.approx(2000.0, rel=0.10)
 
 
+def test_vaccination_dose_sink_reduces_S_to_S_vax_vs_no_sink(client):
+    """Adding {R: null} as a sink must shrink S->S_vax vs the no-sink baseline.
+
+    Same population, seed, and daily_doses; the only difference is the sink
+    flow. With the sink, the denominator is S+R; without it, it's just S
+    (so dose delivery is capped only by S itself). The ratio of medians on
+    day 0 should track S / (S + R) = 0.2.
+    """
+    sink_request = _dose_sink_request()
+    no_sink_request = _dose_sink_request()
+    no_sink_request["vaccination"]["flows"] = [{"source": "S", "target": "S_vax"}]
+
+    sink_resp = client.post("/api/v1/simulations", json=sink_request)
+    no_sink_resp = client.post("/api/v1/simulations", json=no_sink_request)
+    assert sink_resp.status_code == 200, sink_resp.text
+    assert no_sink_resp.status_code == 200, no_sink_resp.text
+
+    def _day0_median(resp):
+        transitions = resp.json()["results"]["transitions"]["data"]["S_to_S_vax"]
+        quantile_data = next(iter(transitions.values()))
+        median_key = "median" if "median" in quantile_data else "0.5"
+        return quantile_data[median_key][0]
+
+    sink_day0 = _day0_median(sink_resp)
+    no_sink_day0 = _day0_median(no_sink_resp)
+
+    # Sanity: sink must strictly reduce vaccinations on day 0.
+    assert sink_day0 < no_sink_day0
+    # No-sink: denominator = S only, so the campaign delivers ~daily_doses.
+    assert no_sink_day0 == pytest.approx(10_000.0, rel=0.10)
+    # Sink ratio should track S / (S + R) = 0.2.
+    assert sink_day0 / no_sink_day0 == pytest.approx(0.2, rel=0.15)
+
+
 def _multi_target_request():
     """Single 1000-dose campaign vaccinating both S and S_2 with their own targets.
 

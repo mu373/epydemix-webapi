@@ -109,6 +109,11 @@ const config: Config = {
   ],
 
   themeConfig: {
+    docs: {
+      sidebar: {
+        hideable: true,
+      },
+    },
     navbar: {
       title: 'epydemix Web API',
       items: [
@@ -127,6 +132,7 @@ const config: Config = {
           href: 'https://github.com/mu373/epydemix-webapi',
           label: 'GitHub',
           position: 'right',
+          className: 'navbar-github-link',
         },
       ],
     },

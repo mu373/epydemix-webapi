@@ -57,7 +57,7 @@ Examples:
 
 ## Example: SEIRH model
 
-This model extends SEIR with a hospitalized compartment. Infected individuals may either recover directly or be hospitalized first.
+This model extends SEIR with a hospitalized compartment. Infected individuals may either recover directly or be hospitalized first. The example below seeds 0.1% of the population as `I` at t=0 via an explicit `initial_conditions` block; the rest starts in `S`. See [Initial Conditions](../initial-conditions.mdx) for other seeding options. Custom models have no built-in default. If you omit the block, epydemix's fallback is used, but it can misspecify the initial state for some model structures.
 
 <CurlBlock>
 {`curl -X POST BASE_URL/simulations \\
@@ -85,6 +85,10 @@ This model extends SEIR with a hospitalized compartment. Infected individuals ma
       "start_date": "2024-01-01",
       "end_date": "2024-03-01",
       "Nsim": 10
+    },
+    "initial_conditions": {
+      "method": "percentage",
+      "initial_percentages": {"I": 0.1}
     }
   }'`}
 </CurlBlock>

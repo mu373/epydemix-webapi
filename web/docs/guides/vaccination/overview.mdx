@@ -109,15 +109,6 @@ $$
 
 In expectation, group $i$ receives $r_c(t)\,X_i(t)\,dt$ doses per step into $Y_i$ from campaign $c$. With multiple transitioning flows, the same draw fires independently for each.
 
-### Mean-field dynamics
-
-The mean-field counterpart for a source compartment $X$ and target compartment $Y$ adds:
-
-$$
-\frac{dX_i}{dt} = -r_i(t)X_i(t), \qquad
-\frac{dY_i}{dt} = r_i(t)X_i(t).
-$$
-
 ## Vaccine efficacy
 
 How much protection vaccination confers is a property of the **model**, not the rollout block. The [`V-SEIHR` preset](../model/presets/v-seihr.mdx#vaccine-efficacy) defines `VE_S` (against infection) and `VE_H` (against hospitalization); see the preset page for how they enter the dynamics. Custom models can mirror the same pattern with their own efficacy expressions.

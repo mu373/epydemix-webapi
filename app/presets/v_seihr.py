@@ -19,6 +19,7 @@ import numpy as np
 from epydemix.model.epimodel import EpiModel
 
 from ..utils.parameter_conversions import ParameterConversion
+from ._build import add_transitions
 
 DESCRIPTION: str = (
     "Vaccinated SEIHR model with parallel unvaccinated/vaccinated compartments. "
@@ -233,93 +234,6 @@ def build_v_seihr_model(
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             model.add_parameter(parameter_name=name, value=float(value))
 
-    # Unvaccinated branch.
-    model.add_transition(
-        source="Susceptible",
-        target="Exposed",
-        kind="mediated",
-        params=("transmission_rate", "Infected"),
-    )
-    model.add_transition(
-        source="Susceptible",
-        target="Exposed",
-        kind="mediated",
-        params=("transmission_rate", "Infected_vax"),
-    )
-    model.add_transition(
-        source="Exposed",
-        target="Infected",
-        kind="spontaneous",
-        params="incubation_rate",
-    )
-    model.add_transition(
-        source="Infected",
-        target="Recovered",
-        kind="spontaneous",
-        params="I_to_R_rate",
-    )
-    model.add_transition(
-        source="Infected",
-        target="Hospitalized",
-        kind="spontaneous",
-        params="I_to_H_rate",
-    )
-    model.add_transition(
-        source="Hospitalized",
-        target="Recovered",
-        kind="spontaneous",
-        params="hosp_recovery_rate",
-    )
-    model.add_transition(
-        source="Recovered",
-        target="Susceptible",
-        kind="spontaneous",
-        params="waning_rate",
-    )
-
-    # Vaccinated branch (twin transitions; force-of-infection mediated by both
-    # I and I_vax with the VE-attenuated transmission rate).
-    model.add_transition(
-        source="Susceptible_vax",
-        target="Exposed_vax",
-        kind="mediated",
-        params=("transmission_rate_vax", "Infected"),
-    )
-    model.add_transition(
-        source="Susceptible_vax",
-        target="Exposed_vax",
-        kind="mediated",
-        params=("transmission_rate_vax", "Infected_vax"),
-    )
-    model.add_transition(
-        source="Exposed_vax",
-        target="Infected_vax",
-        kind="spontaneous",
-        params="incubation_rate",
-    )
-    model.add_transition(
-        source="Infected_vax",
-        target="Recovered_vax",
-        kind="spontaneous",
-        params="Ivax_to_R_rate",
-    )
-    model.add_transition(
-        source="Infected_vax",
-        target="Hospitalized_vax",
-        kind="spontaneous",
-        params="Ivax_to_H_rate",
-    )
-    model.add_transition(
-        source="Hospitalized_vax",
-        target="Recovered_vax",
-        kind="spontaneous",
-        params="hosp_recovery_rate",
-    )
-    model.add_transition(
-        source="Recovered_vax",
-        target="Susceptible_vax",
-        kind="spontaneous",
-        params="waning_rate",
-    )
+    add_transitions(model, TRANSITIONS)
 
     return model, dict(PRESET_CALC_PARAMETERS)

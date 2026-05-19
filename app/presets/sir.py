@@ -5,6 +5,7 @@ from __future__ import annotations
 from epydemix.model.epimodel import EpiModel
 
 from ..utils.parameter_conversions import ParameterConversion
+from ._build import add_transitions
 
 
 COMPARTMENTS: list[str] = ["Susceptible", "Infected", "Recovered"]
@@ -64,16 +65,5 @@ def build_sir_model(
     for name, value in merged.items():
         model.add_parameter(parameter_name=name, value=float(value))
 
-    model.add_transition(
-        source="Susceptible",
-        target="Infected",
-        kind="mediated",
-        params=("transmission_rate", "Infected"),
-    )
-    model.add_transition(
-        source="Infected",
-        target="Recovered",
-        kind="spontaneous",
-        params="recovery_rate",
-    )
+    add_transitions(model, TRANSITIONS)
     return model, {}

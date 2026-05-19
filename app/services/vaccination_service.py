@@ -41,7 +41,7 @@ def apply_vaccinations(
     config: VaccinationConfig | None,
     simulation: SimulationConfig,
     preset: str | None,
-) -> None:
+) -> list[CompartmentFlow] | None:
     """Wire the vaccination flow into ``model``.
 
     Must be called after ``setup_population`` so the age-group names and the
@@ -49,6 +49,10 @@ def apply_vaccinations(
     parameter transforms doesn't matter: vaccination uses a custom transition
     kind that reads the source population at each step, not a regular
     parameter.
+
+    Returns the resolved flows (with V-SEIHR defaults filled in) so callers
+    can surface them in response metadata. Returns ``None`` when there is no
+    vaccination block to apply.
 
     Raises ``ValueError`` (forwarded as 422) on any validation problem:
 
@@ -60,7 +64,7 @@ def apply_vaccinations(
     if config is None or not config.campaigns:
         if config is not None and not config.campaigns:
             raise ValueError("'vaccination.campaigns' must contain at least one entry")
-        return
+        return None
 
     flows = _resolve_flows(config, preset, list(model.compartments))
     denom_sources = tuple(flow.source for flow in flows)
@@ -92,6 +96,8 @@ def apply_vaccinations(
             kind="vaccination_count",
             params={"source": flow.source, "denominator_sources": denom_sources},
         )
+
+    return flows
 
 
 def _resolve_flows(

@@ -601,8 +601,10 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
         )
 
         # Vaccination flow (source to vaccinated target). Mutates model in place;
-        # no-op when the request has no `vaccination` block.
-        apply_vaccinations(
+        # no-op when the request has no `vaccination` block. Returns the resolved
+        # flows (including V-SEIHR's defaulted Susceptible -> Susceptible_vax)
+        # so we can echo them in metadata.
+        resolved_flows = apply_vaccinations(
             model,
             request.vaccination,
             request.simulation,
@@ -639,7 +641,14 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
         if request.output is not None and request.output.include_parameters:
             results_data.parameters = extract_parameter_results(model, request.simulation)
 
-        # Build metadata
+        # Build metadata. Surface the resolved vaccination flows so callers can
+        # see the V-SEIHR default (Susceptible -> Susceptible_vax) rather than
+        # `flows: null`.
+        vaccination_metadata = request.vaccination
+        if vaccination_metadata is not None and resolved_flows is not None:
+            vaccination_metadata = vaccination_metadata.model_copy(
+                update={"flows": resolved_flows}
+            )
         metadata = SimulationMetadata(
             model=ModelMetadata(
                 preset=request.model.preset,
@@ -649,7 +658,7 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
             simulation=_build_run_metadata(request),
             interventions=request.interventions,
             parameter_transforms=request.parameter_transforms,
-            vaccination=request.vaccination,
+            vaccination=vaccination_metadata,
         )
 
         return SimulationResponse(

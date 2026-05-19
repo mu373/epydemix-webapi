@@ -150,31 +150,19 @@ def _format_date(date_val) -> str | None:
 
 def _resolve_age_groups(
     requested: list[str] | None,
-    stacked: dict,
-    bases: list[str],
+    available: list[str],
 ) -> list[str]:
     """Resolve the age groups to compute summary stats for.
 
-    If the caller did not specify a filter, returns every age group that
-    appears in the stacked data for the given bases, in a stable order
-    (insertion order of the stacked dict) with `total` last if present.
+    ``available`` is the canonical list of age-group names (typically
+    ``population.Nk_names`` + ``"total"``); we don't infer it by stripping
+    keys from the stacked dict because that breaks for V-SEIHR-style models
+    where compartment names can have a ``_vax`` suffix that overlaps an
+    unrelated compartment's prefix (e.g. ``Susceptible_vax_0-4`` would
+    masquerade as age group ``vax_0-4`` under base ``Susceptible``).
     """
-    seen: dict[str, None] = {}
-    for key in stacked:
-        for base in bases:
-            if key == f"{base}_total":
-                seen.setdefault("total", None)
-                break
-            if key.startswith(base + "_"):
-                seen.setdefault(key[len(base) + 1 :], None)
-                break
-    available = list(seen.keys())
-    # Move "total" to the end for a more natural order.
-    if "total" in available:
-        available = [g for g in available if g != "total"] + ["total"]
-
     if requested is None:
-        return available
+        return list(available)
     return [g for g in requested if g in available]
 
 
@@ -184,6 +172,7 @@ def compute_summary(
     total_transitions: list[str],
     age_groups: list[str] | None,
     quantiles: list[float],
+    population_age_groups: list[str],
 ) -> SummaryResults | None:
     """Compute summary statistics from simulation results.
 
@@ -216,9 +205,11 @@ def compute_summary(
     peaks: dict[str, dict[str, PeakStatistic]] = {}
     totals: dict[str, dict[str, StatisticQuantiles]] = {}
 
+    available_age_groups = list(population_age_groups) + ["total"]
+
     if peak_compartments:
         stacked = results.get_stacked_compartments()
-        resolved_groups = _resolve_age_groups(age_groups, stacked, peak_compartments)
+        resolved_groups = _resolve_age_groups(age_groups, available_age_groups)
         for comp_name in peak_compartments:
             peak_by_group: dict[str, PeakStatistic] = {}
             for age_group in resolved_groups:
@@ -243,7 +234,7 @@ def compute_summary(
 
     if total_transitions:
         trans_stacked = results.get_stacked_transitions()
-        resolved_groups = _resolve_age_groups(age_groups, trans_stacked, total_transitions)
+        resolved_groups = _resolve_age_groups(age_groups, available_age_groups)
         for trans_name in total_transitions:
             total_by_group: dict[str, StatisticQuantiles] = {}
             for age_group in resolved_groups:
@@ -355,6 +346,7 @@ def process_results(
         total_transitions=resolved_totals,
         age_groups=output_config.age_groups,
         quantiles=output_config.quantiles or DEFAULT_QUANTILES,
+        population_age_groups=[str(name) for name in model.population.Nk_names],
     )
 
     # Include raw trajectories if requested

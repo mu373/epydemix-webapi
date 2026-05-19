@@ -244,6 +244,62 @@ def test_v_seihr_explicit_initial_conditions(client):
     assert response.status_code == 200, response.text
 
 
+def test_v_seihr_vaccination_metadata_surfaces_default_flows(client):
+    """V-SEIHR's defaulted Susceptible -> Susceptible_vax flow is echoed in metadata.
+
+    Regression: previously the metadata block echoed back the raw request, so
+    if the caller omitted `vaccination.flows` it stayed `null` in the response
+    even though the simulator had defaulted it internally.
+    """
+    request = _baseline_request()
+    request["vaccination"] = {
+        "campaigns": [
+            {
+                "start_date": "2025-02-01",
+                "end_date": "2025-03-15",
+                "rollout": {"type": "flat_count", "daily_doses": 100000},
+            }
+        ]
+    }
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 200, response.text
+
+    flows = response.json()["metadata"]["vaccination"]["flows"]
+    assert flows == [{"source": "Susceptible", "target": "Susceptible_vax"}]
+
+
+def test_v_seihr_summary_peaks_do_not_leak_vax_compartments(client):
+    """Susceptible's per-age-group peaks must not include `Susceptible_vax` keys.
+
+    Regression: the previous age-group resolver stripped `base + "_"` from every
+    stacked-data key, so `Susceptible_vax_0-4` was misread as age group
+    `vax_0-4` under base `Susceptible` (and `vax_total` under `Susceptible`).
+    The fix grounds age groups in the population's `Nk_names` instead of
+    inferring them from key suffixes.
+    """
+    response = client.post("/api/v1/simulations", json=_baseline_request())
+    assert response.status_code == 200, response.text
+
+    peaks = response.json()["results"]["summary"]["peaks"]
+
+    # Susceptible (unvaccinated) and Susceptible_vax (vaccinated) must both be
+    # present, each with its own age groups - no cross-leakage.
+    assert "Susceptible" in peaks
+    assert "Susceptible_vax" in peaks
+
+    expected_age_groups = {"0-4", "5-19", "20-49", "50-64", "65+", "total"}
+    assert set(peaks["Susceptible"].keys()) == expected_age_groups
+    assert set(peaks["Susceptible_vax"].keys()) == expected_age_groups
+
+    # No vax_* leakage in the unvaccinated compartment, and the same check
+    # holds across every other compartment with a _vax twin.
+    for comp in ("Susceptible", "Exposed", "Infected", "Hospitalized", "Recovered"):
+        for age_group in peaks[comp]:
+            assert not age_group.startswith("vax_"), (
+                f"{comp} peaks contain leaked _vax key: {age_group}"
+            )
+
+
 @pytest.mark.slow
 def test_v_seihr_vaccination_speed_orders_outcomes(client):
     """Faster rollout monotonically decreases both peak incidence and final size.

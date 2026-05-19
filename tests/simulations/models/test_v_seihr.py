@@ -9,7 +9,6 @@ import pytest
 
 from app.presets import PRESETS
 
-
 _V_SEIHR_COMPARTMENTS = [
     "Susceptible",
     "Susceptible_vax",
@@ -99,13 +98,19 @@ def test_v_seihr_calc_params_exposed(client):
 def test_v_seihr_VE_zero(client):
     """When VE_S and VE_H are zero, vaccinated rate parameters equal unvaccinated."""
     request = _baseline_request()
+
+    # Set VE_S and VE_H to zero to disable vaccine effects
     request["model"]["parameters"]["VE_S"] = 0.0
     request["model"]["parameters"]["VE_H"] = 0.0
+
     request["output"] = {"include_parameters": True}
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 200, response.text
     params = response.json()["results"]["parameters"]["data"]
     first = next(iter(params["transmission_rate"]))
+
+    # Compare transmission_rate and hosp_proportion to their vax twins
+    # With VE_S and VE_H at zero, the twins should be equal
     assert params["transmission_rate_vax"][first][0] == pytest.approx(
         params["transmission_rate"][first][0], abs=1e-9
     )
@@ -150,9 +155,9 @@ def test_v_seihr_waning_enabled_via_immunity_duration(client):
     pool over the simulation horizon).
     """
     request = _baseline_request()
-    request["model"]["parameters"]["immunity_duration"] = (
-        30.0  # Set waning on via immunity_duration
-    )
+
+    # Set waning on via immunity_duration
+    request["model"]["parameters"]["immunity_duration"] = 30.0
     request["initial_conditions"] = {
         "method": "absolute",
         "compartments": {
@@ -192,7 +197,13 @@ def test_v_seihr_with_vaccination_campaign(client):
     assert response.status_code == 200, response.text
     data = response.json()
     transitions = data["results"]["transitions"]
+
     assert "Susceptible_to_Susceptible_vax" in transitions["data"]
+    # The campaign must actually drive S -> S_vax flow.
+    totals = data["results"]["summary"]["totals"]["Susceptible_to_Susceptible_vax"]
+    medians = [age_data["quantiles"]["0.5"] for age_data in totals.values()]
+    assert sum(medians) > 0, f"Susceptible_to_Susceptible_vax medians = {medians}"
+
     # Echo-back in metadata.
     assert data["metadata"]["vaccination"]["campaigns"][0]["rollout"]["daily_doses"] == 100_000
 

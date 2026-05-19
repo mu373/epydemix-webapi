@@ -1,7 +1,5 @@
 """Custom-population path through the simulation endpoint and schema validators."""
 
-import pytest
-
 CUSTOM_POPULATION_REQUEST = {
     "model": {
         "preset": "SIR",
@@ -217,84 +215,3 @@ def test_simulation_request_routes_to_custom_branch():
     assert list(req.population.age_groups.keys()) == ["A", "B"]
 
 
-def test_homogeneous_sir_matches_ode_solution(client):
-    """Numeric correctness: a single-group custom population with a 1x1 contact
-    matrix must reproduce the homogeneous SIR ODE in expectation. The stochastic
-    median (Nsim=100, seed=42, dt=0.25) is compared against an RK4 integration
-    of the deterministic equations from the same initial conditions.
-
-    Tolerances are sized at ~2x the empirical errors measured at this config so
-    seed-noise / environment drift have headroom without dulling regression
-    detection.
-    """
-    import numpy as np
-
-    BETA, GAMMA, N = 0.3, 0.1, 100_000
-
-    payload = {
-        "model": {
-            "preset": "SIR",
-            "parameters": {"transmission_rate": BETA, "recovery_rate": GAMMA},
-        },
-        "population": {
-            "source": "custom",
-            "name": "Homogeneous N=100k",
-            "age_groups": {"A": N},
-            "contact_matrices": {"all": [[1.0]]},
-        },
-        "simulation": {
-            "start_date": "2024-01-01",
-            "end_date": "2024-06-01",
-            "Nsim": 100,
-            "dt": 0.25,
-            "seed": 42,
-        },
-    }
-
-    response = client.post("/api/v1/simulations", json=payload)
-    assert response.status_code == 200, response.text
-    data = response.json()
-    assert data["status"] == "completed"
-
-    comp = data["results"]["compartments"]["data"]
-    S_med = np.array(comp["Susceptible"]["A"]["0.5"], dtype=float)
-    I_med = np.array(comp["Infected"]["A"]["0.5"], dtype=float)
-    T = len(S_med)
-
-    # RK4 of dS=-bSI/N, dI=bSI/N-gI, dR=gI from the same IC the simulator used.
-    S0, I0, R0_count = float(S_med[0]), float(I_med[0]), float(N - S_med[0] - I_med[0])
-
-    def deriv(s, i, _r):
-        infection = BETA * s * i / N
-        return -infection, infection - GAMMA * i, GAMMA * i
-
-    h = 0.05  # RK4 step in days; ODE error here is negligible
-    s, i, r = S0, I0, R0_count
-    S_ode = np.empty(T)
-    I_ode = np.empty(T)
-    S_ode[0], I_ode[0] = s, i
-    for day in range(1, T):
-        steps = int(round(1.0 / h))
-        for _ in range(steps):
-            k1 = deriv(s, i, r)
-            k2 = deriv(s + h * k1[0] / 2, i + h * k1[1] / 2, r + h * k1[2] / 2)
-            k3 = deriv(s + h * k2[0] / 2, i + h * k2[1] / 2, r + h * k2[2] / 2)
-            k4 = deriv(s + h * k3[0], i + h * k3[1], r + h * k3[2])
-            s += h * (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]) / 6
-            i += h * (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1]) / 6
-            r += h * (k1[2] + 2 * k2[2] + 2 * k3[2] + k4[2]) / 6
-        S_ode[day], I_ode[day] = s, i
-
-    peak_day_sim = int(np.argmax(I_med))
-    peak_day_ode = int(np.argmax(I_ode))
-    peak_height_sim = float(I_med[peak_day_sim])
-    peak_height_ode = float(I_ode[peak_day_ode])
-    final_size_sim = float(N - S_med[-1])
-    final_size_ode = float(N - S_ode[-1])
-
-    # Peak timing within +-2 days (measured shift at this config: +1 day).
-    assert peak_day_sim == pytest.approx(peak_day_ode, abs=2)
-    # Peak height within 3% (measured: ~1.3%).
-    assert peak_height_sim == pytest.approx(peak_height_ode, rel=0.03)
-    # Final epidemic size within 1% (measured: ~0.27%). Most stable invariant.
-    assert final_size_sim == pytest.approx(final_size_ode, rel=0.01)

@@ -24,8 +24,12 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "rehype-katex": "7",
+    "rehype-stringify": "^10.0.1",
     "remark-math": "6",
-    "sass": "^1.93.2"
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "sass": "^1.93.2",
+    "unified": "^11.0.5"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "3.10.0",

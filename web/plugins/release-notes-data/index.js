@@ -45,8 +45,21 @@ function releaseNotesDataPlugin(context) {
 
     async loadContent() {
       if (!fs.existsSync(dir)) return [];
-      // micromark is ESM-only; load it lazily so the CJS plugin file works.
-      const {micromark} = await import('micromark');
+      // unified/remark/rehype are ESM-only; load lazily so the CJS plugin works.
+      const {unified} = await import('unified');
+      const {default: remarkParse} = await import('remark-parse');
+      const {default: remarkMath} = await import('remark-math');
+      const {default: remarkRehype} = await import('remark-rehype');
+      const {default: rehypeKatex} = await import('rehype-katex');
+      const {default: rehypeStringify} = await import('rehype-stringify');
+
+      const processor = unified()
+        .use(remarkParse)
+        .use(remarkMath)
+        .use(remarkRehype)
+        .use(rehypeKatex)
+        .use(rehypeStringify);
+
       const files = fs
         .readdirSync(dir)
         .filter((/** @type {string} */ f) => /^v.*\.mdx?$/.test(f));
@@ -62,7 +75,9 @@ function releaseNotesDataPlugin(context) {
           date = data.date;
         }
         const summarySrc = String(data.summary ?? '').trim();
-        const summaryHtml = summarySrc ? micromark(summarySrc) : '';
+        const summaryHtml = summarySrc
+          ? String(processor.processSync(summarySrc))
+          : '';
         const slug = file.replace(/\.mdx?$/, '');
         return {
           slug,

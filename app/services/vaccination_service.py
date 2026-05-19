@@ -72,9 +72,7 @@ def apply_vaccinations(
 
     age_names = [str(name) for name in model.population.Nk_names]
     n_groups = model.population.num_groups
-    dates = compute_simulation_dates(
-        simulation.start_date, simulation.end_date, dt=simulation.dt
-    )
+    dates = compute_simulation_dates(simulation.start_date, simulation.end_date, dt=simulation.dt)
 
     resolved: list[ResolvedCampaign] = []
     for camp in config.campaigns:
@@ -82,9 +80,7 @@ def apply_vaccinations(
         schedule = _build_schedule(
             camp.rollout, dates, simulation.dt, camp.start_date, camp.end_date
         )
-        resolved.append(
-            ResolvedCampaign(daily_doses_at_t=schedule, target_age_indices=age_idx)
-        )
+        resolved.append(ResolvedCampaign(daily_doses_at_t=schedule, target_age_indices=age_idx))
 
     rate_fn = make_vaccination_rate_fn(resolved, n_groups)
     register_vaccination_kind(model, rate_fn)
@@ -119,9 +115,7 @@ def _resolve_flows(
     elif preset == "V-SEIHR":
         flows = list(_V_SEIHR_DEFAULT_FLOWS)
     else:
-        raise ValueError(
-            "'vaccination.flows' is required for models without the V-SEIHR preset"
-        )
+        raise ValueError("'vaccination.flows' is required for models without the V-SEIHR preset")
 
     for i, flow in enumerate(flows):
         if flow.source not in compartments:

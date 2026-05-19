@@ -121,7 +121,7 @@ def test_v_seihr_waning_off_by_default(client):
     waning rate at zero the stochastic draw on `Recovered -> Susceptible`
     (and its vaccinated twin) can never produce a non-zero transition count.
     """
-    request = _baseline_request() # No parameters for waning, so the preset default of 0.0 applies.
+    request = _baseline_request()  # No parameters for waning, so the preset default of 0.0 applies.
     request["output"] = {"include_parameters": True}
     response = client.post("/api/v1/simulations", json=request)
     assert response.status_code == 200
@@ -132,7 +132,7 @@ def test_v_seihr_waning_off_by_default(client):
     assert series == pytest.approx([0.0] * len(series), abs=1e-12)
 
     # Simulation: zero cumulative R -> S transitions in the median trajectory,
-    # across both layers and every age group. 
+    # across both layers and every age group.
     totals = body["summary"]["totals"]
     for name in ("Recovered_to_Susceptible", "Recovered_vax_to_Susceptible_vax"):
         for age_data in totals[name].values():
@@ -150,7 +150,9 @@ def test_v_seihr_waning_enabled_via_immunity_duration(client):
     pool over the simulation horizon).
     """
     request = _baseline_request()
-    request["model"]["parameters"]["immunity_duration"] = 30.0  # Set waning on via immunity_duration
+    request["model"]["parameters"]["immunity_duration"] = (
+        30.0  # Set waning on via immunity_duration
+    )
     request["initial_conditions"] = {
         "method": "absolute",
         "compartments": {
@@ -382,7 +384,9 @@ def test_v_seihr_vaccination_speed_orders_outcomes(client):
 
     def _peak_incidence(results):
         inc_u = next(iter(results["transitions"]["data"]["Exposed_to_Infected"].values()))["0.5"]
-        inc_v = next(iter(results["transitions"]["data"]["Exposed_vax_to_Infected_vax"].values()))["0.5"]
+        inc_v = next(iter(results["transitions"]["data"]["Exposed_vax_to_Infected_vax"].values()))[
+            "0.5"
+        ]
         return max(a + b for a, b in zip(inc_u, inc_v))
 
     def _final_attack_rate(results):
@@ -403,9 +407,9 @@ def test_v_seihr_vaccination_speed_orders_outcomes(client):
         "slow": 0.001 * n_pop,
     }
     for key, target in daily_targets.items():
-        vax_series = next(iter(
-            bodies[key]["transitions"]["data"]["Susceptible_to_Susceptible_vax"].values()
-        ))["0.5"]
+        vax_series = next(
+            iter(bodies[key]["transitions"]["data"]["Susceptible_to_Susceptible_vax"].values())
+        )["0.5"]
         # First five in-window days
         early = vax_series[1:6]
 
@@ -427,12 +431,9 @@ def test_v_seihr_vaccination_speed_orders_outcomes(client):
             f"peak incidence: {prev}={peaks[prev]:.0f} not <= {curr}={peaks[curr]:.0f}"
         )
         assert finals[prev] <= finals[curr], (
-            f"final size: {prev}={finals[prev]:.4f} not <= "
-            f"{curr}={finals[curr]:.4f}"
+            f"final size: {prev}={finals[prev]:.4f} not <= {curr}={finals[curr]:.4f}"
         )
 
     # Pulse on day 2 should essentially eliminate the epidemic: with VE_S=0.85
     # and a tiny initial seed, only a small fraction ever gets infected.
-    assert finals["pulse"] < 0.01, (
-        f"pulse final size = {finals['pulse']:.4f}, expected < 0.01"
-    )
+    assert finals["pulse"] < 0.01, f"pulse final size = {finals['pulse']:.4f}, expected < 0.01"

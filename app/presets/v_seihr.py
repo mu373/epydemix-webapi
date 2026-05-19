@@ -155,9 +155,7 @@ TRANSITIONS: list[dict] = [
 PARAMETER_CONVERSIONS: dict[str, ParameterConversion] = {
     "incubation_rate": ParameterConversion("incubation_period", "1 / incubation_period"),
     "recovery_rate": ParameterConversion("infectious_period", "1 / infectious_period"),
-    "hosp_recovery_rate": ParameterConversion(
-        "hosp_duration", "1 / hosp_duration"
-    ),
+    "hosp_recovery_rate": ParameterConversion("hosp_duration", "1 / hosp_duration"),
     "waning_rate": ParameterConversion("immunity_duration", "1 / immunity_duration"),
     "transmission_rate": ParameterConversion(
         "R0", "R0 * recovery_rate / CONTACT_MATRIX_EIGENVALUE_ALL"

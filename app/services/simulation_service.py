@@ -157,9 +157,7 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
         user_scalar_names = {
             k for k, v in (request.model.parameters or {}).items() if not isinstance(v, str)
         }
-        converted = resolve_parameter_conversions(
-            model.parameters, user_scalar_names, conversions
-        )
+        converted = resolve_parameter_conversions(model.parameters, user_scalar_names, conversions)
         # User calc-params still win over registry-injected conversions on collision.
         expr_params = {**converted, **expr_params}
 
@@ -233,9 +231,7 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
         # `flows: null`.
         vaccination_metadata = request.vaccination
         if vaccination_metadata is not None and resolved_flows is not None:
-            vaccination_metadata = vaccination_metadata.model_copy(
-                update={"flows": resolved_flows}
-            )
+            vaccination_metadata = vaccination_metadata.model_copy(update={"flows": resolved_flows})
         metadata = SimulationMetadata(
             model=ModelMetadata(
                 preset=request.model.preset,

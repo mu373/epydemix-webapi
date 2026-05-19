@@ -45,7 +45,7 @@ def test_schedule_zero_outside_window():
 
 def test_rate_fn_inactive_campaign_returns_zero():
     """When the schedule is zero at step `t`, the rate function returns all zeros."""
-    schedule = np.zeros(10, dtype=float) # Zero doses across the window
+    schedule = np.zeros(10, dtype=float)  # Zero doses across the window
     campaign = ResolvedCampaign(daily_doses_at_t=schedule, target_age_indices=np.array([0]))
     rate_fn = make_vaccination_rate_fn([campaign], n_groups=1)
     rate = rate_fn(
@@ -100,9 +100,7 @@ def test_flat_count_delivers_expected_doses_per_day():
 
     sim_dates = compute_simulation_dates(sim_start, sim_end, dt=dt)
     schedule = build_flat_count_schedule(sim_dates, dt, c_start, c_end, daily_doses)
-    campaign = ResolvedCampaign(
-        daily_doses_at_t=schedule, target_age_indices=np.array([0])
-    )
+    campaign = ResolvedCampaign(daily_doses_at_t=schedule, target_age_indices=np.array([0]))
     rate_fn = make_vaccination_rate_fn([campaign], n_groups=1)
     register_vaccination_kind(model, rate_fn)
     model.add_transition(
@@ -122,9 +120,7 @@ def test_flat_count_delivers_expected_doses_per_day():
     )
 
     # Stack per-trajectory total-age transition counts into a (Nsim, T) array.
-    per_step = np.stack(
-        [traj.transitions["X_to_X_vax_total"] for traj in results.trajectories]
-    )
+    per_step = np.stack([traj.transitions["X_to_X_vax_total"] for traj in results.trajectories])
     mean_per_step = per_step.mean(axis=0)
 
     # Inside the window, the mean should land near `daily_doses`. With Nsim=50
@@ -144,9 +140,7 @@ def test_dose_cap_when_source_depleted():
     model, initial = _minimal_model(initial_X=initial_X)
     sim_dates = compute_simulation_dates("2025-01-01", "2025-01-31", dt=1.0)
     schedule = build_flat_count_schedule(sim_dates, 1.0, "2025-01-01", "2025-01-31", 100_000)
-    campaign = ResolvedCampaign(
-        daily_doses_at_t=schedule, target_age_indices=np.array([0])
-    )
+    campaign = ResolvedCampaign(daily_doses_at_t=schedule, target_age_indices=np.array([0]))
     rate_fn = make_vaccination_rate_fn([campaign], n_groups=1)
     register_vaccination_kind(model, rate_fn)
     model.add_transition(
@@ -164,9 +158,7 @@ def test_dose_cap_when_source_depleted():
         initial_conditions_dict=initial,
         rng=np.random.default_rng(0),
     )
-    totals = np.array(
-        [traj.transitions["X_to_X_vax_total"].sum() for traj in results.trajectories]
-    )
+    totals = np.array([traj.transitions["X_to_X_vax_total"].sum() for traj in results.trajectories])
     # Total vaccinations cannot exceed the finite source pool. One-sided hard
     # invariant, not an approximate equality.
     assert np.all(totals <= initial_X)
@@ -292,9 +284,7 @@ def test_two_overlapping_campaigns_rates_add():
         initial_conditions_dict=initial,
         rng=np.random.default_rng(2),
     )
-    per_step = np.stack(
-        [traj.transitions["X_to_X_vax_total"] for traj in results.trajectories]
-    )
+    per_step = np.stack([traj.transitions["X_to_X_vax_total"] for traj in results.trajectories])
     mean_per_step = per_step.mean(axis=0)
 
     # Per-step expected: 0 before 01-05, 300 in [01-05, 01-09], 500 in [01-10, 01-15],
@@ -347,16 +337,16 @@ def test_depletion_shoulder_matches_discrete_theory():
         initial_conditions_dict=initial,
         rng=np.random.default_rng(3),
     )
-    per_step = np.stack(
-        [traj.transitions["X_to_X_vax_total"] for traj in results.trajectories]
-    )
+    per_step = np.stack([traj.transitions["X_to_X_vax_total"] for traj in results.trajectories])
     mean_per_step = per_step.mean(axis=0)
 
     # Calculate theoretical expected transitions with depletion
     # S(t+1) = S(t) * exp(-c/S(t)).
     c = daily_doses * dt
     s = N
-    expected = np.empty(horizon_days, dtype=np.float64) # Support array for expected per-step transitions.
+    expected = np.empty(
+        horizon_days, dtype=np.float64
+    )  # Support array for expected per-step transitions.
     for k in range(horizon_days):
         if s <= 0:
             expected[k] = 0.0

@@ -664,9 +664,7 @@ def test_override_on_calc_param_target(client):
 
 def test_override_composes_after_scale(client):
     """Scale then override on the same window: override wins."""
-    request = _calc_param_sir_request(
-        {"transmission_rate": 1.0, "recovery_rate": 0.1}
-    )
+    request = _calc_param_sir_request({"transmission_rate": 1.0, "recovery_rate": 0.1})
     request["parameter_transforms"] = [
         {
             "target_parameter": "transmission_rate",

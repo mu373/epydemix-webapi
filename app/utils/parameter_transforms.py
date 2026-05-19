@@ -43,9 +43,7 @@ def broadcast_to_time_and_age(value, T: int, N: int) -> np.ndarray:
         return np.broadcast_to(arr, (T, N)).copy()
     if arr.ndim == 2 and arr.shape == (T, N):
         return arr.copy()
-    raise ValueError(
-        f"Cannot broadcast parameter value of shape {arr.shape} to (T={T}, N={N})"
-    )
+    raise ValueError(f"Cannot broadcast parameter value of shape {arr.shape} to (T={T}, N={N})")
 
 
 def window_mask_for_dates(

@@ -381,9 +381,7 @@ class VaccinationCampaignConfig(BaseModel):
     )
     target_age_groups: list[str] | None = Field(
         default=None,
-        description=(
-            "Age group labels to target, e.g. `[\"20-49\", \"65+\"]`. `null` = all groups."
-        ),
+        description=('Age group labels to target, e.g. `["20-49", "65+"]`. `null` = all groups.'),
     )
     rollout: RolloutConfig = Field(
         ...,
@@ -403,9 +401,7 @@ class VaccinationCampaignConfig(BaseModel):
     def _validate_target_age_groups(self) -> "VaccinationCampaignConfig":
         if self.target_age_groups is not None:
             if len(set(self.target_age_groups)) != len(self.target_age_groups):
-                raise ValueError(
-                    "each entry in 'target_age_groups' must be unique"
-                )
+                raise ValueError("each entry in 'target_age_groups' must be unique")
         return self
 
 

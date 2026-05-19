@@ -127,27 +127,37 @@ def main() -> None:
 
     c_start = dt.date.fromisoformat(C_START)
     c_end = dt.date.fromisoformat(C_END)
-    scheduled = np.array(
-        [DAILY_DOSES if c_start <= d <= c_end else 0.0 for d in dates]
-    )
+    scheduled = np.array([DAILY_DOSES if c_start <= d <= c_end else 0.0 for d in dates])
 
     fig, axes = plt.subplots(
-        2, 1, figsize=(7, 5.5), sharex=True, constrained_layout=True,
+        2,
+        1,
+        figsize=(7, 5.5),
+        sharex=True,
+        constrained_layout=True,
         gridspec_kw={"height_ratios": [1.0, 0.85]},
     )
 
     ax0 = axes[0]
     ax0.plot(
-        dates, scheduled, color="gray", linewidth=1.5, linestyle="--",
+        dates,
+        scheduled,
+        color="gray",
+        linewidth=1.5,
+        linestyle="--",
         label=f"Scheduled ({int(DAILY_DOSES):,}/day)",
     )
     ax0.plot(
-        dates, delivered, color="tab:blue", linewidth=2.0,
+        dates,
+        delivered,
+        color="tab:blue",
+        linewidth=2.0,
         label="Delivered (S to S_vax, median)",
     )
     ax0.axvspan(c_start, c_end, color="tab:blue", alpha=0.06, label="Campaign window")
     _format_axes(
-        ax0, "Doses per day",
+        ax0,
+        "Doses per day",
         title=f"Flat-count rollout, V-SEIHR, N={int(N_POP):,}, R0=1.4",
     )
     ax0.set_ylim(0, 7000)
@@ -155,7 +165,10 @@ def main() -> None:
 
     ax1 = axes[1]
     ax1.plot(
-        dates, susceptible, color="tab:green", linewidth=2.0,
+        dates,
+        susceptible,
+        color="tab:green",
+        linewidth=2.0,
         label="Susceptible (median)",
     )
     ax1.axvspan(c_start, c_end, color="tab:blue", alpha=0.06)

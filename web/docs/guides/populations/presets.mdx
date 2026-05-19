@@ -17,7 +17,7 @@ For background on what a population is and how the contact matrix shapes an age-
 
 Browse every population available in the API along with its supported contact sources.
 
-API reference: [`GET /api/v1/populations`](/api-reference#tag/populations/GET/api/v1/populations).
+API reference: [`GET /api/v1/populations`](/api-reference).
 
 <CurlBlock>{`curl BASE_URL/populations`}</CurlBlock>
 
@@ -59,7 +59,7 @@ Beyond country-level entries, the API also exposes **subnational regions** (stat
 | South Africa | 9 | `South_Africa__Gauteng`, `South_Africa__Western_Cape` |
 | Australia | 8 states/territories | `Australia__Victoria`, `Australia__New_South_Wales` |
 
-Use [`GET /api/v1/populations`](/api-reference#tag/populations/GET/api/v1/populations) to enumerate every available identifier.
+Use [`GET /api/v1/populations`](/api-reference) to enumerate every available identifier.
 
 Example: simulate an outbreak in Massachusetts.
 
@@ -101,7 +101,7 @@ The US is further divided into ~3,100 **counties**. Demographic distributions ar
 
 Look up demographic details for a single population: total size, age groups, and which contact sources and layers it ships with.
 
-API reference: [`GET /api/v1/populations/{name}`](/api-reference#tag/populations/GET/api/v1/populations/{name}).
+API reference: [`GET /api/v1/populations/{name}`](/api-reference).
 
 <CurlBlock>{`curl BASE_URL/populations/United_States`}</CurlBlock>
 
@@ -140,7 +140,7 @@ Example response (`age_distribution` truncated):
 
 Fetch the per-layer mixing matrices used to compute the force of infection between age groups.
 
-API reference: [`GET /api/v1/populations/{name}/contacts`](/api-reference#tag/populations/GET/api/v1/populations/{name}/contacts).
+API reference: [`GET /api/v1/populations/{name}/contacts`](/api-reference).
 
 <CurlBlock>{`curl BASE_URL/populations/United_States/contacts`}</CurlBlock>
 
@@ -206,7 +206,7 @@ Three sources are available for most countries:
 
 The minimal form to use population in simulations is by setting `population.name`. The default contact source is used and the default 5-group aggregation is applied.
 
-API reference: [`POST /api/v1/simulations`](/api-reference#tag/simulations/POST/api/v1/simulations).
+API reference: [`POST /api/v1/simulations`](/api-reference).
 
 <CurlBlock>
 {`curl -X POST BASE_URL/simulations \\

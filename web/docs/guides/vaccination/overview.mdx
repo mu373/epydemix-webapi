@@ -109,6 +109,14 @@ $$
 
 In expectation, group $i$ receives $r_c(t)\,X_i(t)\,dt$ doses per step into $Y_i$ from campaign $c$. With multiple transitioning flows, the same draw fires independently for each.
 
+### Mean-field dynamics
+
+The mean-field counterpart for a source compartment $X$ and target compartment $Y$ adds:
+
+$$
+\frac{dX_i}{dt} = -r_i(t)X_i(t), \qquad
+\frac{dY_i}{dt} = r_i(t)X_i(t).
+$$
 
 ## Vaccine efficacy
 

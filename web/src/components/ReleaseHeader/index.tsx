@@ -16,7 +16,7 @@ function formatDate(raw: unknown): string {
 export default function ReleaseHeader() {
   const {frontMatter} = useDoc();
   const version = String(frontMatter.title ?? '');
-  const date = formatDate(frontMatter.date);
+  const date = formatDate((frontMatter as Record<string, unknown>).date);
   if (!version) return null;
 
   const releaseUrl = `${REPO_URL}/releases/tag/${version}`;

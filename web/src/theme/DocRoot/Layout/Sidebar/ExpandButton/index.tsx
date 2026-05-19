@@ -8,7 +8,7 @@ type Props = {
 
 export default function DocRootLayoutSidebarExpandButton({
   toggleSidebar,
-}: Props): JSX.Element {
+}: Props): React.ReactElement {
   const label = translate({
     id: 'theme.docs.sidebar.expandButtonTitle',
     message: 'Expand sidebar',

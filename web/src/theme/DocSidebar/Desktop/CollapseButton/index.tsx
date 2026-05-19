@@ -7,7 +7,7 @@ type Props = {
   onClick: React.MouseEventHandler<HTMLButtonElement>;
 };
 
-export default function CollapseButton({onClick}: Props): JSX.Element {
+export default function CollapseButton({onClick}: Props): React.ReactElement {
   const label = translate({
     id: 'theme.docs.sidebar.collapseButtonTitle',
     message: 'Collapse sidebar',

@@ -24,6 +24,10 @@ export const TEMPLATES: Template[] = [
     "start_date": "2024-01-01",
     "end_date": "2024-03-01",
     "Nsim": 10
+  },
+  "initial_conditions": {
+    "method": "percentage",
+    "initial_percentages": { "Infected": 0.1 } // 0.1%
   }
 }`,
   },
@@ -54,6 +58,10 @@ export const TEMPLATES: Template[] = [
     "start_date": "2024-01-01",
     "end_date": "2024-03-01",
     "Nsim": 5
+  },
+  "initial_conditions": {
+    "method": "percentage",
+    "initial_percentages": { "Infected": 0.1 } // 0.1%
   }
 }`,
   },
@@ -75,6 +83,10 @@ export const TEMPLATES: Template[] = [
     "start_date": "2024-08-01",
     "end_date": "2025-07-31",
     "Nsim": 10
+  },
+  "initial_conditions": {
+    "method": "percentage",
+    "initial_percentages": { "Infected": 0.1 } // 0.1%
   },
   "parameter_transforms": [
     {
@@ -107,6 +119,10 @@ export const TEMPLATES: Template[] = [
     "start_date": "2024-01-01",
     "end_date": "2024-05-01",
     "Nsim": 10
+  },
+  "initial_conditions": {
+    "method": "percentage",
+    "initial_percentages": { "Infected": 0.1 } // 0.1%
   },
   // Comment this out to compare a scenario without intervention
   "parameter_transforms": [
@@ -141,6 +157,10 @@ export const TEMPLATES: Template[] = [
     "start_date": "2024-01-01",
     "end_date": "2024-03-01",
     "Nsim": 10
+  },
+  "initial_conditions": {
+    "method": "percentage",
+    "initial_percentages": { "Exposed": 0.1 } // 0.1%
   }
 }`,
   },
@@ -162,6 +182,10 @@ export const TEMPLATES: Template[] = [
     "start_date": "2024-01-01",
     "end_date": "2024-06-01",
     "Nsim": 10
+  },
+  "initial_conditions": {
+    "method": "percentage",
+    "initial_percentages": { "Infected": 0.1 } // 0.1%
   }
 }`,
   },
@@ -188,6 +212,10 @@ export const TEMPLATES: Template[] = [
     "start_date": "2025-08-01",
     "end_date": "2026-07-31",
     "Nsim": 10
+  },
+  "initial_conditions": {
+    "method": "percentage",
+    "initial_percentages": { "Infected": 0.1 } // 0.1%
   },
   "parameter_transforms": [
     {

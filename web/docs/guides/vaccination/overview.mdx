@@ -101,13 +101,30 @@ For example with shape #2: 4,000 susceptibles and 56,000 recovered sharing 1,000
 
 The per-individual rate is **shared** across all targeted groups and sources, so each (source, group) cell receives doses in proportion to its live population. With a single flow `[{S, S_vax}]`, a `flat_count` campaign targeting two age groups holding 4,000 and 6,000 susceptibles and a 1,000-dose-per-day budget delivers 400 and 600 doses respectively (in expectation).
 
-For a transitioning flow with source $X$ and target $Y$, each age group $i$ draws its transition count independently:
+At each step the simulator updates each source compartment independently with a multinomial draw over all of its out-edges. Every active vaccination flow leaving $X$ contributes the campaign rate $r_c(t)$ from above, alongside any non-vaccination rates $q^{X,k}_i(t)$ on the same source (e.g. infection $S \to E$).
+
+Bundling them into the total per-individual out-rate
 
 $$
-\Delta Y_i(t) \sim \mathrm{Binomial}\!\Bigl(X_i(t),\ \textstyle\sum_{c\,:\,i \in \mathcal{A}_c} r_c(t)\,dt\Bigr).
+H_i^{X}(t) \;=\; \underbrace{\sum_{c\,:\,i \in \mathcal{A}_c,\,X \in \mathcal{S}_c} r_c(t)}_{\text{vaccination}} \;+\; \underbrace{\sum_{k} q^{X,k}_i(t)}_{\text{other out-edges}},
 $$
 
-In expectation, group $i$ receives $r_c(t)\,X_i(t)\,dt$ doses per step into $Y_i$ from campaign $c$. With multiple transitioning flows, the same draw fires independently for each.
+the per-step counts out of $X_i$ are sampled jointly as
+
+$$
+\bigl(\Delta_{\text{stay},i},\ \Delta_{Z_1,i},\ \Delta_{Z_2,i},\ \ldots\bigr) \;\sim\; \mathrm{Multinomial}\bigl(X_i(t),\ \mathbf{p}_i\bigr),
+$$
+
+where $\{Z_k\}$ enumerates the destinations reachable from $X$ (the vaccination target $Y$ is one of them) and $\mathbf{p}_i$ splits the total leave probability $1 - e^{-H_i^{X}\,dt}$ among them in proportion to each edge's rate.
+
+In expectation, $Y$ thus receives
+
+$$
+\mathbb{E}[\Delta Y_i(t)] \;\approx\; r_c(t)\,X_i(t)\,dt,
+$$
+
+If vaccination is the only out-edge of $X_i$, the multinomial draw reduces to a binomial draw.
+
 
 ## Vaccine efficacy
 

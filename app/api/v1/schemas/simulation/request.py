@@ -231,14 +231,18 @@ class InitialConditionsConfig(BaseModel):
     initial_percentages: dict[str, float] | None = Field(
         default=None,
         description=(
-            "Percentage of population in each compartment. "
+            "Percentage (0-100, not a fraction) of the population in each compartment. "
             "Remainder goes to the first compartment.\n"
-            '- Example: `{"I": 0.01, "R": 10.0}`.'
+            '- Example: `{"I": 0.01, "R": 10.0}` puts 0.01% in `I` and 10% in `R`.'
         ),
     )
     compartments: dict[str, list[float]] | None = Field(
         default=None,
-        description="Absolute counts per compartment per age group. Required when method is `absolute`.",
+        description=(
+            "Absolute counts per compartment per age group. Required when method is `absolute`. "
+            "Each list must have one entry per age group, in the same order as `population.age_groups`.\n"
+            '- Example (two age groups): `{"Susceptible": [9900, 9990], "Infected": [100, 10]}`.'
+        ),
     )
 
     @model_validator(mode="after")

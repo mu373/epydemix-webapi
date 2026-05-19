@@ -99,6 +99,11 @@ const config: Config = {
         showNavLink: false,
         configuration: {
           url: '/openapi.json',
+          // Docusaurus/Algolia owns Cmd/Ctrl+K for global docs search.
+          // Move Scalar's endpoint search off that shortcut to avoid opening
+          // both modals at once on the API reference route.
+          searchHotKey: 'y',
+          showDeveloperTools: 'never',
           servers: [
             {url: 'https://epyscenario-api.isi.it', description: 'Production'},
             {url: 'http://localhost:8000', description: 'Local'},

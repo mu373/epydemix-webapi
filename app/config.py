@@ -4,7 +4,14 @@ This module defines the Settings class which loads configuration from
 environment variables with the EPYDEMIX_ prefix.
 """
 
+from importlib.metadata import PackageNotFoundError, version
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+try:
+    _APP_VERSION = version("epydemix-webapi")
+except PackageNotFoundError:
+    _APP_VERSION = "0.0.0"
 
 
 class Settings(BaseSettings):
@@ -34,7 +41,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="EPYDEMIX_")
 
     app_name: str = "epydemix WebAPI"
-    app_version: str = "0.7.0"
+    app_version: str = _APP_VERSION
     debug: bool = False
 
     # API settings

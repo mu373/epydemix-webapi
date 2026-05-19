@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Check, Copy, Download } from 'lucide-react';
+import { JsonView, defaultStyles } from 'react-json-view-lite';
+import 'react-json-view-lite/dist/index.css';
 import styles from '../Playground.module.css';
 import type { Run } from '../types';
 import { copyText } from '../utils';
@@ -69,7 +71,16 @@ export default function ResponsePanel({ run, onError }: Props) {
             <Download size={14} />
           </button>
         </div>
-        <pre className={styles.responsePre}>{text}</pre>
+        <div className={styles.responsePre}>
+          <JsonView
+            data={run.response as object}
+            shouldExpandNode={(level) => level < 2}
+            style={{
+              ...defaultStyles,
+              container: styles.jsonViewContainer,
+            }}
+          />
+        </div>
       </div>
     </div>
   );

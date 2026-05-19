@@ -176,7 +176,13 @@
   font-size: 0.78rem;
   line-height: 1.4;
   overflow: auto;
-  white-space: pre;
+}
+
+.jsonViewContainer {
+  background: transparent;
+  line-height: 1.2;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 .responseActions {

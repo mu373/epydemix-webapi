@@ -89,7 +89,7 @@ $$
 | $\nu_i$ | per-age | per-day vaccination rate from the `vaccination` block; zero outside any campaign window and outside that campaign's `target_age_groups` |
 | $\text{VE}_S$, $\text{VE}_H$ | scalar | `VE_S`, `VE_H` |
 
-The simulator is fully stochastic and draws multinomial draws at each step with given rates. The expected dynamics matches the mean-field approximation as above.
+The simulator is fully stochastic: at each step every source compartment is updated by a competing-risks multinomial draw over its out-edges, with leave probability $1 - e^{-H_i\,dt}$ and destination weights proportional to the per-edge rates. The expected dynamics match the mean-field equations above.
 
 </details>
 

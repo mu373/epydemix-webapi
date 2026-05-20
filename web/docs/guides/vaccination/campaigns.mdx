@@ -65,7 +65,7 @@ Each entry in `campaigns` describes one rollout:
 
 A constant `daily_doses` count is scheduled every day across the campaign window, distributed proportionally to the source-compartment population in each targeted age group.
 
-"Flat" refers to the *scheduled* budget, not the *delivered* curve: as the source pool depletes (through vaccination, infections, etc.), the actual daily delivered count can drift below `daily_doses`. If the live pool drops below `daily_doses` per step, the binomial draw saturates; if it's empty, no doses are delivered that step.
+"Flat" refers to the *scheduled* budget, not the *delivered* curve: as the source pool depletes (through vaccination, infections, etc.), the actual daily delivered count can drift below `daily_doses`. If the live pool drops below `daily_doses` per step, the per-source stochastic draw saturates against the available population; if the pool is empty, no doses are delivered that step. See the [Dose allocation](./overview.mdx#dose-allocation) section for the per-step competing-risks draw.
 
 | Field | Required | Description |
 |---|---|---|

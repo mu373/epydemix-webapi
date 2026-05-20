@@ -43,5 +43,7 @@ COPY --from=builder /app/app app
 # Expose port
 EXPOSE 8000
 
-# Run with gunicorn + uvicorn workers
-CMD ["uv", "run", "--no-sync", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# Run with uvicorn. Listen on $PORT (Cloud Run injects it, default 8080) and fall back
+# to 8000 elsewhere (Fly.io, docker-compose, local). sh -c expands the env var; exec
+# replaces the shell so signals reach uvicorn.
+CMD ["sh", "-c", "exec uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2"]

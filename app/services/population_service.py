@@ -4,6 +4,7 @@ This module provides functions for listing available populations,
 retrieving population details, and accessing contact matrices.
 """
 
+import copy
 import functools
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -219,6 +220,34 @@ def _resolve_contacts_source(name: str, contacts_source: str | None) -> str:
     return "mistry_2021"  # fallback default
 
 
+@functools.lru_cache(maxsize=50)
+def _load_population_for_sim(
+    name: str,
+    contacts_source: str,
+    layers_key: tuple[str, ...],
+    mapping_key: tuple[tuple[str, tuple[str, ...]], ...] | None,
+) -> Population:
+    """Cached builtin-population load for the simulation path.
+
+    All four arguments must be hashable and canonical so equivalent requests
+    hit the same cache entry: ``contacts_source`` resolved (never None),
+    ``layers`` sorted, ``age_group_mapping`` flattened to sorted tuples. The
+    underlying ``load_epydemix_population`` fetches ~6-7 CSVs over HTTPS with no
+    cache of its own, so this collapses repeated identical loads (~0.6s each)
+    to a single fetch.
+
+    Returns the shared cached object; callers must copy before handing it to a
+    model (see ``setup_population``).
+    """
+    mapping = {k: list(v) for k, v in mapping_key} if mapping_key is not None else None
+    return load_epydemix_population(
+        population_name=name,
+        contacts_source=contacts_source,
+        layers=list(layers_key),
+        age_group_mapping=mapping,
+    )
+
+
 def setup_population(model: EpiModel, config: PopulationConfig) -> None:
     """Load and set population for the model.
 
@@ -247,13 +276,24 @@ def setup_population(model: EpiModel, config: PopulationConfig) -> None:
         model.set_population(population)
         return
 
-    population = load_epydemix_population(
-        population_name=config.name,
-        contacts_source=config.contacts_source,
-        layers=config.layers or DEFAULT_LAYERS,
-        age_group_mapping=config.age_group_mapping,
+    # Route the builtin load through a cache keyed on the canonicalized args.
+    # Resolving contacts_source collapses None and its default to one entry;
+    # sorting layers makes order irrelevant (the resulting contact_matrices
+    # dict is order-independent). The cache hands back a shared object, so we
+    # deepcopy before binding it to this request's model to rule out any
+    # cross-request mutation (cheap: a handful of small arrays).
+    resolved_source = _resolve_contacts_source(config.name, config.contacts_source)
+    layers_key = tuple(sorted(config.layers or DEFAULT_LAYERS))
+    mapping = config.age_group_mapping
+    mapping_key = (
+        tuple(sorted((k, tuple(v)) for k, v in mapping.items()))
+        if mapping is not None
+        else None
     )
-    model.set_population(population)
+    population = _load_population_for_sim(
+        config.name, resolved_source, layers_key, mapping_key
+    )
+    model.set_population(copy.deepcopy(population))
 
 
 def _load_population_cached(

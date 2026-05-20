@@ -1,6 +1,6 @@
 [project]
 name = "epydemix-webapi"
-version = "0.7.1"
+version = "0.7.2"
 description = "REST API for running epidemic simulations on epydemix"
 readme = "README.md"
 requires-python = ">=3.10"

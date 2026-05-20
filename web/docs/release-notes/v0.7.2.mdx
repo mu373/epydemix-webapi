@@ -23,7 +23,7 @@ import ReleaseHeader from '@site/src/components/ReleaseHeader';
 
 ## Performance
 
-Simulations are significantly faster, with **identical output** for a given request and seed. A year-long `V-SEIHR` + vaccination run (US population, `Nsim=10`) dropped from ~3.8s to ~1.4s (warm), about 2.7x. Speedup scales with simulation horizon, compartment count, and `Nsim`.
+Simulations are significantly faster, with identical output for a given request and seed. Measured on Google Cloud Run, a year-long `V-SEIHR` + vaccination run (US population, `Nsim=10`) completes in ~3.6s end-to-end, about 2.7x faster than v0.7.1. Speedup scales with simulation horizon, compartment count, and `Nsim`.
 
 ## Deployment
 

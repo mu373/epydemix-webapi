@@ -177,7 +177,7 @@ const config: Config = {
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
-      additionalLanguages: ['bash', 'json', 'json5', 'python'],
+      additionalLanguages: ['bash', 'json', 'json5', 'python', 'hcl'],
     },
     // Algolia DocSearch. Credentials come from environment variables so the
     // search-only key never lands in the repo (set them in .env.local for

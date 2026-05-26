@@ -120,3 +120,6 @@ def test_absolute_without_compartments_rejected_at_schema_level():
     """Schema validation rejects `absolute` without `compartments`."""
     with pytest.raises(ValueError, match="'compartments' must be provided"):
         InitialConditionsConfig(method="absolute")
+
+
+# TODO: add coverage initial conditions where it is split between E and I

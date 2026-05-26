@@ -183,20 +183,22 @@ PRESET_CALC_PARAMETERS: dict[str, str] = {
 def default_initial_conditions(model: EpiModel) -> dict[str, np.ndarray]:
     """Sensible default initial conditions for V-SEIHR.
 
-    Seeds ~0.05% of each age group into ``Infected`` and puts the rest into
-    ``Susceptible``; all other compartments (including the ``_vax`` branch)
-    start at zero. This overrides epydemix's built-in default, which
-    mis-splits the population for V-SEIHR-style models because the two
-    parallel mediated transitions (S→E by I/I_vax and S_vax→E_vax by I/I_vax)
-    inflate the source/agent compartment lists and leave ~50% of the
-    population in ``Susceptible_vax`` at t=0.
+    Seeds ~0.05% of each age group split evenly between ``Exposed`` and
+    ``Infected`` (~0.025% each) and puts the rest into ``Susceptible``; all
+    other compartments (including the ``_vax`` branch) start at zero. This
+    overrides epydemix's built-in default, which mis-splits the population
+    for V-SEIHR-style models because the two parallel mediated transitions
+    (S→E by I/I_vax and S_vax→E_vax by I/I_vax) inflate the source/agent
+    compartment lists and leave ~50% of the population in ``Susceptible_vax``
+    at t=0.
     """
     pop_per_group = np.array(model.population.Nk, dtype=float)
-    infected_count = pop_per_group * 0.0005
-    susceptible_count = pop_per_group - infected_count
+    seed_count = pop_per_group * 0.00025
+    susceptible_count = pop_per_group - 2 * seed_count
     conditions = {comp: np.zeros_like(pop_per_group) for comp in COMPARTMENTS}
     conditions["Susceptible"] = susceptible_count
-    conditions["Infected"] = infected_count
+    conditions["Exposed"] = seed_count
+    conditions["Infected"] = seed_count
     return conditions
 
 

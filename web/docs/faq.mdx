@@ -4,6 +4,39 @@ sidebar_position: 99
 
 # FAQ
 
+## Basics
+
+### How does this API work?
+
+It's a stateless REST API built on top of [epydemix](https://github.com/epistorm/epydemix). You send a single JSON `POST` to `/api/v1/simulations` describing the model, population, and run settings, and you get back compartment trajectories and transition counts for every simulation run. No server-side state between requests, and no client-side simulation work, all the heavy process (e.g., stochastic runs) happens on the API. See the [Introduction](./intro.md) for the request/response flow and a list of endpoints.
+
+### Do I need to install Python?
+
+No. The API runs Python on the server; the client just speaks HTTP+JSON. Anything that can send a `POST` works (curl, JavaScript `fetch`, Python `requests`, R `httr`, Postman, a browser via the playground, etc.).
+
+### How can I try it without writing code?
+
+Use the [Playground](/playground): pick a template (SIR, SEIR, V-SEIHR, etc.), edit the JSON in the browser, hit Run, and see the response inline.
+
+### What kind of simulation does it do?
+
+It runs a **discrete-time stochastic** compartmental simulation. At each step the simulator draws a multinomial for the people leaving every source compartment, splitting them across the possible target compartments according to the per-step transition probabilities `1 - exp(-rate × dt)`. The same request runs `Nsim` independent trajectories so you can quantify variability across stochastic realizations.
+
+Population structure is built in, and by default, every run uses an **age-stratified population** with a **contact matrix** governing who mixes with whom.
+
+See [Model Presets › Overview](./guides/model/presets/overview.mdx) for the full set of compartmental presets and the math notation, and [Populations › Overview](./guides/populations/overview.mdx) for built-in vs custom population options.
+
+### What is `dt`?
+
+The **simulation time step**, in days. Set on the request as `simulation.dt` (default: `1.0`). The stochastic engine advances the system in chunks of `dt` and computes per-step transition probabilities as `1 - exp(-rate × dt)`, then draws multinomial outcomes against the source population.
+
+Why you might change it:
+
+- **`dt = 1.0`** (default): one step per day. Fast, and accurate when no per-step probability is large (`rate × dt` much less than 1). For most respiratory-disease parameter sets this is fine.
+- **`dt < 1.0`** (e.g. `0.5`, `0.25`): sub-daily steps. Slower but more accurate when per-step probabilities approach saturation. Smaller `dt` brings the discrete-time dynamics closer to the underlying continuous-time rates.
+
+The response is always resampled to daily by default (`resample_frequency: "D"`), so the dates returned in responses are the same regardless of `dt`.
+
 ## Models
 
 ### How do I define a custom model?
@@ -40,6 +73,25 @@ Pass an integer `seed` under `simulation`. The same request with the same seed r
   "seed": 42
 }
 ```
+
+## Populations
+
+### How do I run a homogeneous (single-group) model?
+
+Skip the built-in populations and pass a **custom population** with one age group and a 1×1 contact matrix. This collapses the contact structure to "everyone mixes with everyone at rate 1" and is useful for sanity checks, theory comparisons, and unit-test-style scenarios.
+
+```json
+"population": {
+  "source": "custom",
+  "name": "Homogeneous 1M",
+  "age_groups": {"all": 1000000},
+  "contact_matrices": {"all": [[1.0]]}
+}
+```
+
+The group label (`"all"` here) is arbitrary; pick anything readable. Any `transmission_rate` / per-capita rate parameter you set then applies uniformly across the whole population.
+
+See [Populations › Custom Populations](./guides/populations/custom-populations.mdx) for multi-group custom setups (e.g. children vs adults with a 2×2 contact matrix).
 
 ## Parameters
 

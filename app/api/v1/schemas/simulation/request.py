@@ -46,7 +46,7 @@ class TransitionConfig(BaseModel):
 
 
 class ModelConfig(BaseModel):
-    """Epidemic model configuration. Use `preset` for a built-in model (SIR, SEIR, SIS), or provide `compartments`, `parameters`, and `transitions` for a custom model."""
+    """Epidemic model configuration. Use `preset` for a built-in model, or provide `compartments`, `parameters`, and `transitions` for a custom model."""
 
     preset: PresetName | None = Field(
         default=None,
@@ -55,6 +55,8 @@ class ModelConfig(BaseModel):
             "- `SIR`: Susceptible-Infected-Recovered\n"
             "- `SEIR`: Susceptible-Exposed-Infected-Recovered\n"
             "- `SIS`: Susceptible-Infected-Susceptible\n"
+            "- `V-SEIR`: Vaccinated SEIR with parallel unvaccinated/vaccinated "
+            "compartments. Use together with the `vaccination` block.\n"
             "- `V-SEIHR`: Vaccinated SEIHR with parallel unvaccinated/vaccinated "
             "compartments. Use together with the `vaccination` block.\n"
             "When using a preset, you can still override default parameter values via `parameters`."
@@ -448,9 +450,9 @@ class VaccinationConfig(BaseModel):
     """Vaccination rollout block.
 
     `flows` declares which compartments compete for doses and which of them
-    actually transition. For the `V-SEIHR` preset it defaults to
-    `[{source: 'Susceptible', target: 'Susceptible_vax'}]`. Custom models
-    must supply it explicitly.
+    actually transition. For the vaccination presets (V-SEIR, V-SEIHR) it
+    defaults to `[{source: 'Susceptible', target: 'Susceptible_vax'}]`.
+    Custom models must supply it explicitly.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -463,7 +465,7 @@ class VaccinationConfig(BaseModel):
             "rate denominator but emit no transition). At least one flow must "
             "have a non-null `target`. Defaults to "
             "`[{source: 'Susceptible', target: 'Susceptible_vax'}]` for the "
-            "`V-SEIHR` preset; required for custom models."
+            "vaccination presets (V-SEIR, V-SEIHR); required for custom models."
         ),
     )
     campaigns: list[VaccinationCampaignConfig] = Field(
@@ -528,10 +530,10 @@ class SimulationRequest(BaseModel):
         description=(
             "Vaccination rollout. Defines the source → target flow and any "
             "number of dose-count campaigns. The vaccinated compartment "
-            "structure and vaccine efficacy (`VE_S`, `VE_H`) are defined in "
-            "the model (either via the `V-SEIHR` preset, or by supplying a "
-            "custom model with vaccinated twin compartments and calculated "
-            "parameters)."
+            "structure and vaccine efficacy (`VE_S`, plus `VE_H` for V-SEIHR) "
+            "are defined in the model (either via a vaccination preset "
+            "(V-SEIR, V-SEIHR), or by supplying a custom model with vaccinated "
+            "twin compartments and calculated parameters)."
         ),
     )
     output: OutputConfig | None = Field(

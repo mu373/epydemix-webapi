@@ -31,9 +31,11 @@ from ..utils.vaccination import (
 )
 
 
-_V_SEIHR_DEFAULT_FLOWS: tuple[CompartmentFlow, ...] = (
+_VAX_DEFAULT_FLOWS: tuple[CompartmentFlow, ...] = (
     CompartmentFlow(source="Susceptible", target="Susceptible_vax"),
 )
+
+_PRESETS_WITH_DEFAULT_FLOWS: frozenset[str] = frozenset({"V-SEIHR", "V-SEIR"})
 
 
 def apply_vaccinations(
@@ -50,14 +52,14 @@ def apply_vaccinations(
     kind that reads the source population at each step, not a regular
     parameter.
 
-    Returns the resolved flows (with V-SEIHR defaults filled in) so callers
-    can surface them in response metadata. Returns ``None`` when there is no
-    vaccination block to apply.
+    Returns the resolved flows (with vaccination-preset defaults filled in)
+    so callers can surface them in response metadata. Returns ``None`` when
+    there is no vaccination block to apply.
 
     Raises ``ValueError`` (forwarded as 422) on any validation problem:
 
       - empty ``campaigns`` list when the block is present;
-      - missing ``flows`` on a model without the V-SEIHR preset;
+      - missing ``flows`` on a model without a vaccination preset;
       - any flow's ``source`` or non-null ``target`` not in ``model.compartments``;
       - ``target_age_groups`` referencing an unknown age-group label.
     """
@@ -101,21 +103,24 @@ def _resolve_flows(
     preset: str | None,
     compartments: list[str],
 ) -> list[CompartmentFlow]:
-    """Pick the flows for this block, defaulting for V-SEIHR.
+    """Pick the flows for this block, defaulting for vaccination presets.
 
-    - V-SEIHR: defaults to ``[{Susceptible -> Susceptible_vax}]`` when
-      ``flows`` is omitted. The user may override (e.g. to add a dose sink or
-      a second source/target pair on a custom V-SEIHR-derived model).
+    - Vaccination presets (see ``_PRESETS_WITH_DEFAULT_FLOWS``): default to
+      ``[{Susceptible -> Susceptible_vax}]`` when ``flows`` is omitted. The
+      user may override (e.g. to add a dose sink or a second source/target
+      pair on a derived model).
     - Other presets / custom models: ``flows`` must be supplied.
     - Every ``source`` and non-null ``target`` must exist in
       ``model.compartments``.
     """
     if config.flows is not None:
         flows = list(config.flows)
-    elif preset == "V-SEIHR":
-        flows = list(_V_SEIHR_DEFAULT_FLOWS)
+    elif preset in _PRESETS_WITH_DEFAULT_FLOWS:
+        flows = list(_VAX_DEFAULT_FLOWS)
     else:
-        raise ValueError("'vaccination.flows' is required for models without the V-SEIHR preset")
+        raise ValueError(
+            "'vaccination.flows' is required for models without a vaccination preset"
+        )
 
     for i, flow in enumerate(flows):
         if flow.source not in compartments:

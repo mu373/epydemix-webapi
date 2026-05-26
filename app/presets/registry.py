@@ -27,7 +27,7 @@ import numpy as np
 from epydemix.model.epimodel import EpiModel
 
 from ..utils.parameter_conversions import ParameterConversion
-from . import seir, sir, sis, v_seihr
+from . import seir, sir, sis, v_seihr, v_seir
 
 
 @dataclass(frozen=True)
@@ -87,6 +87,16 @@ PRESETS: dict[str, PresetDefinition] = {
         transitions=list(sis.TRANSITIONS),
         parameter_conversions=dict(sis.PARAMETER_CONVERSIONS),
         build_model=sis.build_sis_model,
+    ),
+    "V-SEIR": PresetDefinition(
+        name="V-SEIR",
+        description=v_seir.DESCRIPTION,
+        compartments=list(v_seir.COMPARTMENTS),
+        default_parameters=dict(v_seir.DEFAULT_PARAMETERS),
+        transitions=list(v_seir.TRANSITIONS),
+        parameter_conversions=dict(v_seir.PARAMETER_CONVERSIONS),
+        build_model=v_seir.build_v_seir_model,
+        default_initial_conditions=v_seir.default_initial_conditions,
     ),
     "V-SEIHR": PresetDefinition(
         name="V-SEIHR",

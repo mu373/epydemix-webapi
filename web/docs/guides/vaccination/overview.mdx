@@ -14,7 +14,7 @@ Vaccination moves individuals between compartments: a **donor pool** (typically 
 
 The `vaccination` block of the API request only defines the rollout (e.g., schedule, doses, targets, flows), and the actual effects from vaccination are modeled with [`parameters` from the `model` block](../model/parameters/overview.mdx).
 
-The [`V-SEIHR` model preset](../model/presets/v-seihr.mdx) is one of the examples which uses vaccination feature, where we have vaccinated branch of compartments with `VE_S` and `VE_H` efficacy parameters. In this preset, vaccination by default generates the flow `Susceptible → Susceptible_vax`.
+The vaccination model presets ([`V-SEIR`](../model/presets/v-seir.mdx), [`V-SEIHR`](../model/presets/v-seihr.mdx)) are the built-in examples that use the vaccination feature: they expose a vaccinated branch of compartments with `VE_S` (and `VE_H` for V-SEIHR) efficacy parameters, and vaccination by default generates the flow `Susceptible → Susceptible_vax`.
 
 ```json5
 {
@@ -33,7 +33,7 @@ The [`V-SEIHR` model preset](../model/presets/v-seihr.mdx) is one of the example
   "population": {"name": "United_States"},
   "simulation": {"start_date": "2025-01-01", "end_date": "2025-06-30", "Nsim": 10},
   "vaccination": {
-    // "flows" is optional on V-SEIHR (defaults to S → S_vax pair); set it to override.
+    // "flows" is optional on vaccination presets (defaults to S → S_vax pair); set it to override.
     // "flows": [{"source": "Susceptible", "target": "Susceptible_vax"}],
     "campaigns": [
       {
@@ -48,11 +48,11 @@ The [`V-SEIHR` model preset](../model/presets/v-seihr.mdx) is one of the example
 
 ## `vaccination` block
 
-The block declares which compartments are involved in the rollout (`flows`) and which campaigns drive doses (`campaigns`). On `V-SEIHR` the default flow is `Susceptible → Susceptible_vax`; custom models must declare flows explicitly.
+The block declares which compartments are involved in the rollout (`flows`) and which campaigns drive doses (`campaigns`). On the vaccination presets the default flow is `Susceptible → Susceptible_vax`; custom models must declare flows explicitly.
 
 | Field | Required | Description |
 |---|---|---|
-| `flows` | for custom models | List of `{source, target}` compartment pairs. V-SEIHR defaults to `Susceptible → Susceptible_vax`. See [Flows](#flows) for shapes (including dose sinks) and validation. |
+| `flows` | for custom models | List of `{source, target}` compartment pairs. Vaccination presets default to `Susceptible → Susceptible_vax`. See [Flows](#flows) for shapes (including dose sinks) and validation. |
 | `campaigns` | yes (≥1) | List of campaigns, each with its own dates, target age groups, and dose schedule. Multiple campaigns may overlap and their per-step dose schedules add. See [Campaigns](./campaigns.mdx) for the per-campaign fields and rollout strategies. |
 
 
@@ -74,7 +74,7 @@ Here $\mathcal{A}_c$ is the set of age groups campaign $c$ targets, $\mathcal{S}
 A few common shapes:
 
 ```json5
-// 1. Perfect targeting (V-SEIHR default).
+// 1. Perfect targeting (vaccination-preset default).
 "flows": [{"source": "Susceptible", "target": "Susceptible_vax"}]
 
 // 2. Dose sink: S + R compete for doses but only S transitions.
@@ -128,11 +128,11 @@ If vaccination is the only out-edge of $X_i$, the multinomial draw reduces to a 
 
 ## Vaccine efficacy
 
-How much protection vaccination confers is a property of the **model**, not the rollout block. The [`V-SEIHR` preset](../model/presets/v-seihr.mdx#vaccine-efficacy) defines `VE_S` (against infection) and `VE_H` (against hospitalization); see the preset page for how they enter the dynamics. Custom models can mirror the same pattern with their own efficacy expressions.
+How much protection vaccination confers is a property of the **model**, not the rollout block. The vaccination presets ([`V-SEIR`](../model/presets/v-seir.mdx#vaccine-efficacy), [`V-SEIHR`](../model/presets/v-seihr.mdx#vaccine-efficacy)) define `VE_S` (against infection); V-SEIHR additionally defines `VE_H` (against hospitalization). See the preset pages for how they enter the dynamics. Custom models can mirror the same pattern with their own efficacy expressions.
 
 ## Inspecting the rollout
 
-Each transitioning flow surfaces as a regular transition in the response. For the default V-SEIHR rollout, look for `Susceptible_to_Susceptible_vax` under `results.transitions.data`. Note that flows with dose sinks (`target: null`) emit no transition.
+Each transitioning flow surfaces as a regular transition in the response. For the default vaccination-preset rollout, look for `Susceptible_to_Susceptible_vax` under `results.transitions.data`. Note that flows with dose sinks (`target: null`) emit no transition.
 
 The request itself is echoed back under `metadata.vaccination`, including the resolved `flows` list.
 

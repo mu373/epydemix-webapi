@@ -99,10 +99,10 @@ If the array length doesn't match the population's age groups, the request is re
 
 ## Default when omitted
 
-If you omit `initial_conditions`, ~0.05% of each age group is seeded into `Infected` and the rest into `Susceptible`. For V-SEIHR, the `_vax` branch starts at zero.
+If you omit `initial_conditions`, ~0.05% of each age group is seeded into `Infected` and the rest into `Susceptible`. For the vaccination presets, the seed is split evenly between `Exposed` and `Infected` (~0.025% each) and the `_vax` branch starts at zero.
 
 ## Notes
 
-- Compartment names in `initial_percentages` / `compartments` must match the preset's compartment names (e.g. `Susceptible`, `Exposed`, `Infected`, `Recovered`, `Hospitalized` for SEIHR-family presets; `_vax` twins for V-SEIHR).
-- For V-SEIHR, the vaccinated branch (`Susceptible_vax`, `Exposed_vax`, …) starts at zero unless you seed it or supply a [`vaccination`](./vaccination/overview.mdx) block.
+- Compartment names in `initial_percentages` / `compartments` must match the preset's compartment names (e.g. `Susceptible`, `Exposed`, `Infected`, `Recovered`, `Hospitalized` for SEIHR-family presets; `_vax` twins for the vaccination presets).
+- For the vaccination presets, the vaccinated branch (`Susceptible_vax`, `Exposed_vax`, …) starts at zero unless you seed it or supply a [`vaccination`](./vaccination/overview.mdx) block.
 - Use [Custom Models](./model/custom-models.mdx) if you need compartments outside the preset list.

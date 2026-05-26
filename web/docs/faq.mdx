@@ -149,8 +149,8 @@ See [Parameter Transforms › Inspecting the effective parameter values](./guide
 
 ## Vaccination
 
-### How do I disable vaccination rollout in a V-SEIHR run?
+### How do I disable vaccination rollout in a vaccination-preset run?
 
-Omit the `vaccination` block entirely from the request. The `Susceptible → Susceptible_vax` flow is added only when `vaccination` is present; without it the vaccinated branch stays at zero for the whole run and V-SEIHR behaves like plain SEIHR.
+Omit the `vaccination` block entirely from the request. The `Susceptible → Susceptible_vax` flow is added only when `vaccination` is present; without it the vaccinated branch stays at zero for the whole run and the preset behaves like its non-vaccinated counterpart (plain SEIR / SEIHR).
 
-An empty `"vaccination": {"campaigns": []}` is rejected as a 422 (`vaccination.campaigns must contain at least one entry`), so just leave the block out instead. See [V-SEIHR › Without vaccination](./guides/model/presets/v-seihr.mdx#without-vaccination) for a full request example.
+An empty `"vaccination": {"campaigns": []}` is rejected as a 422 (`vaccination.campaigns must contain at least one entry`), so just leave the block out instead. See [V-SEIR › Without vaccination](./guides/model/presets/v-seir.mdx#without-vaccination) or [V-SEIHR › Without vaccination](./guides/model/presets/v-seihr.mdx#without-vaccination) for full request examples.

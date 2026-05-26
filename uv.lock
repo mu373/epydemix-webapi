@@ -559,7 +559,7 @@ wheels = [
 
 [[package]]
 name = "epydemix-webapi"
-version = "0.7.2"
+version = "0.8.0"
 source = { editable = "." }
 dependencies = [
     { name = "epydemix" },

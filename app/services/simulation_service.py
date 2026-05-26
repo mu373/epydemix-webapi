@@ -16,12 +16,16 @@ stages live in sibling service modules:
 import uuid
 
 import numpy as np
+import pandas as pd
+from epydemix.model.simulation_results import SimulationResults
 
 from ..api.v1.schemas.simulation import (
     CustomPopulationConfig,
     ModelMetadata,
+    ParameterResults,
     PopulationConfig,
     PopulationMetadata,
+    SimulationConfig,
     SimulationMetadata,
     SimulationRequest,
     SimulationResponse,
@@ -45,6 +49,46 @@ from .parameter_transforms_service import (
 from .population_service import DEFAULT_LAYERS, _resolve_contacts_source, setup_population
 from .results_processing import process_results
 from .vaccination_service import apply_vaccinations
+
+
+def _padded_internal_simulation(sim: SimulationConfig) -> SimulationConfig:
+    """Return a simulation config padded by one calendar day when ``dt < 1``.
+
+    Works around epydemix's partial-last-day aggregation bug/design: with sub-daily ``dt`` and daily resampling, the user-requested ``end_date`` only gets one
+    sub-step instead of ``1/dt``, so summed transitions on that day are scaled
+    by ``dt``. Padding ``end_date`` by one day lets the originally-requested
+    last day collect its full set of sub-steps; ``_trim_results_to_end_date``
+    drops the padded tail before the response is built.
+    """
+    if sim.dt >= 1.0:
+        return sim
+    padded_end = (pd.Timestamp(sim.end_date) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+    return sim.model_copy(update={"end_date": padded_end})
+
+
+def _trim_results_to_end_date(results: SimulationResults, user_end_date: str) -> None:
+    """Drop trailing dates past ``user_end_date`` from every trajectory in-place."""
+    cutoff = pd.Timestamp(user_end_date).normalize()
+    for traj in results.trajectories:
+        n_keep = sum(1 for d in traj.dates if pd.Timestamp(d).normalize() <= cutoff)
+        if n_keep == len(traj.dates):
+            continue
+        traj.dates = traj.dates[:n_keep]
+        traj.compartments = {k: v[:n_keep] for k, v in traj.compartments.items()}
+        traj.transitions = {k: v[:n_keep] for k, v in traj.transitions.items()}
+
+
+def _trim_parameter_results(params: ParameterResults, user_end_date: str) -> ParameterResults:
+    """Drop trailing dates past ``user_end_date`` from a ParameterResults block."""
+    cutoff = pd.Timestamp(user_end_date).normalize()
+    n_keep = sum(1 for d in params.dates if pd.Timestamp(d).normalize() <= cutoff)
+    if n_keep == len(params.dates):
+        return params
+    trimmed_data = {
+        name: {grp: values[:n_keep] for grp, values in groups.items()}
+        for name, groups in params.data.items()
+    }
+    return ParameterResults(dates=params.dates[:n_keep], data=trimmed_data)
 
 
 def _build_population_metadata(
@@ -123,6 +167,8 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
     """
     simulation_id = f"sim_{uuid.uuid4().hex[:12]}"
 
+    internal_sim = _padded_internal_simulation(request.simulation)
+
     try:
         # Reject any user parameter name that collides with a reserved
         # SCREAMING_SNAKE_CASE name (e.g. CONTACT_MATRIX_EIGENVALUE_ALL).
@@ -165,11 +211,14 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
         apply_interventions(model, request.interventions)
 
         # Source-pass transforms first (balcan/scale/override on non-calc names).
+        # All downstream stages (transforms, vaccination, run, parameter extraction)
+        # use the padded `internal_sim`; the result is trimmed back to the user's
+        # original `end_date` before being returned.
         calc_names = set(expr_params)
         apply_parameter_transforms_sources(
             model,
             request.parameter_transforms,
-            request.simulation,
+            internal_sim,
             calculated_names=calc_names,
         )
 
@@ -181,7 +230,7 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
         apply_parameter_transforms_calc(
             model,
             request.parameter_transforms,
-            request.simulation,
+            internal_sim,
             calculated_names=calc_names,
         )
 
@@ -192,7 +241,7 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
         resolved_flows = apply_vaccinations(
             model,
             request.vaccination,
-            request.simulation,
+            internal_sim,
             request.model.preset,
         )
 
@@ -205,26 +254,33 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
 
         # Create random number generator from seed if provided
         rng = None
-        if request.simulation.seed is not None:
-            rng = np.random.default_rng(request.simulation.seed)
+        if internal_sim.seed is not None:
+            rng = np.random.default_rng(internal_sim.seed)
 
         # Run simulations
         results = model.run_simulations(
-            start_date=request.simulation.start_date,
-            end_date=request.simulation.end_date,
-            Nsim=request.simulation.Nsim,
-            dt=request.simulation.dt,
+            start_date=internal_sim.start_date,
+            end_date=internal_sim.end_date,
+            Nsim=internal_sim.Nsim,
+            dt=internal_sim.dt,
             initial_conditions_dict=initial_conditions,
-            resample_frequency=request.simulation.resample_frequency,
+            resample_frequency=internal_sim.resample_frequency,
             rng=rng,
         )
+
+        # Drop the padded trailing day(s) so the response matches the user's
+        # requested `end_date`. No-op when `dt >= 1.0` (no padding applied).
+        _trim_results_to_end_date(results, request.simulation.end_date)
 
         # Process results
         results_data = process_results(results, request.output, model)
 
         # Optionally attach effective per-step parameter arrays for plotting.
+        # Build them on the padded grid (so any time-array parameters baked in
+        # by transforms broadcast cleanly) and trim back to the user's range.
         if request.output is not None and request.output.include_parameters:
-            results_data.parameters = extract_parameter_results(model, request.simulation)
+            params = extract_parameter_results(model, internal_sim)
+            results_data.parameters = _trim_parameter_results(params, request.simulation.end_date)
 
         # Build metadata. Surface the resolved vaccination flows so callers can
         # see the V-SEIHR default (Susceptible -> Susceptible_vax) rather than

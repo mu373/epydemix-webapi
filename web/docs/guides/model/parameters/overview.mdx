@@ -149,3 +149,35 @@ Reserved names exist only in the expression namespace; they are not stored on th
 ## Time-varying parameters
 
 To make parameters change over the course of the simulation (seasonality, scaling windows, or absolute overrides), use [`parameter_transforms`](./transformations.mdx). Transforms compose on top of whatever you set here, so a base scalar or age-varying parameter still acts as the starting point.
+
+## Inspecting parameter values in the response
+
+Set `output.include_parameters: true` to surface the per-step effective parameter values in the response, after all transforms and overrides have been applied. Useful for plotting seasonality curves, sanity-checking overrides, or confirming what actually drove a simulation.
+
+```json
+"output": { "include_parameters": true }
+```
+
+Response shape under `results.parameters`:
+
+```json
+{
+  "dates": ["2024-01-01", "2024-01-02", "..."],
+  "data": {
+    "transmission_rate": {
+      "0-4":  [0.296, 0.297, "..."],
+      "5-19": [0.296, 0.297, "..."]
+    },
+    "recovery_rate": {
+      "0-4": [0.10, 0.10, "..."]
+    }
+  }
+}
+```
+
+- `dates` aligns 1-to-1 with `results.compartments.dates` and `results.transitions.dates`.
+- Each parameter entry is a `{age_group: [per-step values]}` map. Scalars and age-varying parameters are broadcast to the time axis; time-varying transforms (e.g. `balcan`) keep their per-step shape.
+- The block is **shared across stochastic runs** since parameters are deterministic inputs: one array per parameter regardless of `Nsim`.
+- Reserved names (e.g. `CONTACT_MATRIX_EIGENVALUE_ALL`) live only in the expression namespace and do not appear here.
+
+Off by default to keep responses small. See [Parameter Transforms › Inspecting the effective parameter values](./transformations.mdx#inspecting-the-effective-parameter-values) for a worked example.

@@ -148,9 +148,22 @@ Some parameters can be provided in multiple forms. For example, you can provide 
 
 The derived parameters (`transmission_rate_vax`, `hosp_proportion_vax`, `I_to_R_rate`, `I_to_H_rate`, `Ivax_to_R_rate`, `Ivax_to_H_rate`) are computed automatically from the inputs above and surface in `results.parameters` when `output.include_parameters` is set. You can override any of them by passing a matching name in `parameters` (user-supplied calc-params win on collision).
 
-## Examples
+## Initial conditions
 
-All examples below seed 0.1% of the population as `Infected` at t=0 via an explicit `initial_conditions` block; the rest of the population starts in `Susceptible`, and the `_vax` branch starts at zero. If you omit `initial_conditions` entirely, V-SEIHR defaults to seeding ~0.05% of each age group split evenly between `Exposed` and `Infected` (~0.025% each). See [Initial Conditions](../../initial-conditions.mdx) for other seeding options.
+If the request omits `initial_conditions`, V-SEIHR seeds ~0.05% of each age group split evenly between `Exposed` and `Infected` (~0.025% each); the rest goes to `Susceptible`, and the `_vax` branch starts at zero.
+
+Override the default by passing an explicit `initial_conditions` block, e.g.:
+
+```json5
+"initial_conditions": {
+  "method": "percentage",
+  "initial_percentages": {"Exposed": 0.025, "Infected": 0.025}
+}
+```
+
+See [Initial Conditions](../../initial-conditions.mdx) for other seeding options (absolute counts, multi-compartment seeding, etc.).
+
+## Examples
 
 ### With a vaccination campaign
 

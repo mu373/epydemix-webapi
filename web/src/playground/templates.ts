@@ -161,7 +161,7 @@ export const TEMPLATES: Template[] = [
   },
   "initial_conditions": {
     "method": "percentage",
-    "initial_percentages": { "Exposed": 0.1 } // 0.1%
+    "initial_percentages": { "Exposed": 0.025, "Infected": 0.025 }
   }
 }`,
   },
@@ -191,6 +191,45 @@ export const TEMPLATES: Template[] = [
 }`,
   },
   {
+    name: 'V-SEIR (vaccination)',
+    description: 'V-SEIR on the US population with a flat-count vaccination campaign.',
+    requestText: `{
+  "model": {
+    "preset": "V-SEIR",
+    "parameters": {
+      "R0": 2.5,
+      "incubation_period": 3.0,
+      "infectious_period": 2.5,
+      "VE_S": 0.7
+    }
+  },
+  "population": {
+    "name": "United_States"
+  },
+  "simulation": {
+    "start_date": "2025-01-01",
+    "end_date": "2025-06-30",
+    "Nsim": 10
+  },
+  "initial_conditions": {
+    "method": "percentage",
+    "initial_percentages": { "Exposed": 0.025, "Infected": 0.025 }
+  },
+  "vaccination": {
+    "campaigns": [
+      {
+        "start_date": "2025-02-01",
+        "end_date": "2025-04-30",
+        "rollout": {
+          "type": "flat_count",
+          "daily_doses": 100000
+        }
+      }
+    ]
+  }
+}`,
+  },
+  {
     name: 'V-SEIHR (vaccination)',
     description: 'V-SEIHR on the US population with a flat-count vaccination campaign.',
     requestText: `{
@@ -216,7 +255,7 @@ export const TEMPLATES: Template[] = [
   },
   "initial_conditions": {
     "method": "percentage",
-    "initial_percentages": { "Infected": 0.1 } // 0.1%
+    "initial_percentages": { "Exposed": 0.025, "Infected": 0.025 }
   },
   "vaccination": {
     "campaigns": [
@@ -258,7 +297,7 @@ export const TEMPLATES: Template[] = [
   },
   "initial_conditions": {
     "method": "percentage",
-    "initial_percentages": { "Infected": 0.1 } // 0.1%
+    "initial_percentages": { "Exposed": 0.025, "Infected": 0.025 }
   },
   "parameter_transforms": [
     {

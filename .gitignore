@@ -69,3 +69,6 @@ web/.docusaurus/
 web/static/docs/
 web/static/llms-full.txt
 .vercel
+
+# Benchmarks
+bench/results/*

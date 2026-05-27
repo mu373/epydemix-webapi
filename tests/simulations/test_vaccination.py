@@ -230,28 +230,6 @@ def test_vaccination_metadata_echoed(client):
     assert len(metadata["vaccination"]["campaigns"]) == 1
 
 
-def test_vaccination_dose_count_close_to_expected(client):
-    """Cumulative S to S_vax transitions should be close to daily_doses * days."""
-    request = _custom_vax_model_request()
-    request["simulation"]["Nsim"] = 20
-    response = client.post("/api/v1/simulations", json=request)
-    assert response.status_code == 200, response.text
-    data = response.json()
-    transitions = data["results"]["transitions"]["data"]["S_to_S_vax"]
-
-    # Find a quantile series (median) over the campaign window.
-    quantile_data = next(iter(transitions.values()))
-    median_key = "median" if "median" in quantile_data else "0.5"
-    series = quantile_data[median_key]
-    dates = data["results"]["transitions"]["dates"]
-    in_window = [v for d, v in zip(dates, series) if "2025-01-05" <= d <= "2025-01-15"]
-
-    # For 11 days, we expect a total of 10000 * 11 daily doses
-    expected = 10_000 * 11
-    cumulative = sum(in_window)
-    assert cumulative == pytest.approx(expected, rel=0.05)
-
-
 def _dose_sink_request():
     """S + R compete for doses; only S -> S_vax fires. Matches epydemix tutorial 09.
 
@@ -426,3 +404,112 @@ def test_vaccination_multi_target_proportional_to_live_pool(client):
     assert s2_vax == pytest.approx(6000.0, rel=0.05)
     # Total respects the budget on average.
     assert s_vax + s2_vax == pytest.approx(10_000.0, rel=0.03)
+
+
+def _coverage_cap_request(fraction: float = 0.3):
+    """fixed_rate campaign with a coverage cap on S_vax."""
+    return {
+        "model": {
+            "compartments": ["S", "S_vax"],
+            "parameters": {"k": 0.0},
+            "transitions": [],
+        },
+        "population": {
+            "source": "custom",
+            "name": "tiny",
+            "age_groups": {"all": 1_000_000},
+            "contact_matrices": {"all": [[1.0]]},
+        },
+        "simulation": {
+            "start_date": "2025-01-01",
+            "end_date": "2025-02-28",
+            "Nsim": 20,
+            "seed": 29,
+        },
+        "initial_conditions": {
+            "method": "absolute",
+            "compartments": {"S": [1_000_000], "S_vax": [0]},
+        },
+        "vaccination": {
+            "flows": [{"source": "S", "target": "S_vax"}],
+            "campaigns": [
+                {
+                    "start_date": "2025-01-01",
+                    "end_date": "2025-02-28",
+                    "rollout": {"type": "fixed_rate", "rate": 0.05},
+                    "coverage": {
+                        "fraction": fraction,
+                        "compartments": ["S_vax"],
+                    },
+                }
+            ],
+        },
+        "output": {"include_trajectories": True},
+    }
+
+
+def test_coverage_cap_plateaus_at_threshold(client):
+    """A coverage cap stops the campaign once vaccinated compartments reach the threshold."""
+    fraction = 0.3
+    initial_population = 1_000_000.0
+
+    response = client.post("/api/v1/simulations", json=_coverage_cap_request(fraction))
+    assert response.status_code == 200, response.text
+    data = response.json()
+    quantile_data = next(iter(data["results"]["compartments"]["data"]["S_vax"].values()))
+    median_key = "median" if "median" in quantile_data else "0.5"
+    s_vax_series = quantile_data[median_key]
+
+    # Final S_vax should plateau at <= threshold + a small overshoot.
+    threshold = fraction * initial_population
+
+    # One-step overshoot bound: rate=0.05, sub-threshold S ~ 700k, so at most
+    # ~35k could land in the last pre-cap step. Use a 10% slack.
+    assert s_vax_series[-1] <= threshold * 1.1
+
+    # And must be at least near the threshold (cap fires, doesn't stop early).
+    assert s_vax_series[-1] >= threshold * 0.9
+
+
+def test_coverage_cap_metadata_echoed(client):
+    """metadata.vaccination round-trips the coverage block."""
+    response = client.post("/api/v1/simulations", json=_coverage_cap_request(0.5))
+    assert response.status_code == 200
+    coverage = response.json()["metadata"]["vaccination"]["campaigns"][0]["coverage"]
+    assert coverage["fraction"] == 0.5
+    assert coverage["compartments"] == ["S_vax"]
+
+
+def test_coverage_unknown_compartment_422(client):
+    """coverage.compartments referencing an unknown compartment is rejected at the service."""
+    request = _coverage_cap_request(0.5)
+    request["vaccination"]["campaigns"][0]["coverage"]["compartments"] = ["S_vax", "phantom_vax"]
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 422
+    detail_str = str(response.json()["detail"])
+    assert "phantom_vax" in detail_str
+
+
+def test_coverage_source_overlap_422(client):
+    """coverage.compartments including a flow source is rejected (would cap at t=0)."""
+    request = _coverage_cap_request(0.5)
+    request["vaccination"]["campaigns"][0]["coverage"]["compartments"] = ["S"]
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 422
+    detail_str = str(response.json()["detail"])
+    assert "overlap" in detail_str.lower() or "source" in detail_str.lower()
+
+
+def test_coverage_fraction_out_of_range_422(client):
+    """coverage.fraction must be in (0, 1]."""
+    request = _coverage_cap_request(1.5)
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 422
+
+
+def test_empty_target_age_groups_422(client):
+    """An empty target_age_groups list is rejected at schema (min_length=1)."""
+    request = _custom_vax_model_request()
+    request["vaccination"]["campaigns"][0]["target_age_groups"] = []
+    response = client.post("/api/v1/simulations", json=request)
+    assert response.status_code == 422

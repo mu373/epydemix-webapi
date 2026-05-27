@@ -7,7 +7,9 @@ Re-exports the public schema names so callers can keep importing from
 from .request import (
     BuiltinPopulationConfig,
     CompartmentFlow,
+    CoverageCap,
     CustomPopulationConfig,
+    FixedRateRollout,
     FlatCountRollout,
     InitialConditionsConfig,
     InterventionConfig,
@@ -49,7 +51,9 @@ __all__ = [
     # request
     "BuiltinPopulationConfig",
     "CompartmentFlow",
+    "CoverageCap",
     "CustomPopulationConfig",
+    "FixedRateRollout",
     "FlatCountRollout",
     "InitialConditionsConfig",
     "InterventionConfig",

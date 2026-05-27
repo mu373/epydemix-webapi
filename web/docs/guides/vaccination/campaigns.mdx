@@ -56,8 +56,9 @@ Each entry in `campaigns` describes one rollout:
 | `name` | no | Free-text label echoed back in `metadata.vaccination`. Handy for keeping multiple overlapping campaigns straight. |
 | `start_date` | yes | Campaign start (`YYYY-MM-DD`), inclusive. |
 | `end_date` | yes | Campaign end (`YYYY-MM-DD`), inclusive. Must be `≥ start_date`. |
-| `rollout` | yes | Rollout strategy. v1 supports `flat_count`; the `type` field is the discriminator. See [Rollout strategies](#rollout-strategies). |
-| `target_age_groups` | no | List of age-group labels (e.g. `["50-64", "65+"]`). Must be unique and must match labels from the resolved population. `null` (the default) means all groups. |
+| `rollout` | yes | Rollout strategy. Supported: `flat_count`, `fixed_rate`. The `type` field is the discriminator. See [Rollout strategies](#rollout-strategies). |
+| `target_age_groups` | no | List of age-group labels (e.g. `["50-64", "65+"]`). Must be unique and must match labels from the resolved population. `null` (the default) means all groups. Empty lists are rejected. |
+| `coverage` | no | Optional cap that stops the campaign once vaccinated compartments in `target_age_groups` reach a target fraction of the initial population. See [Coverage cap](#coverage-cap). |
 
 ## Rollout strategies
 
@@ -83,6 +84,59 @@ The scheduled budget (dashed) holds at 5,000/day across the entire window, but t
 
 </details>
 
+### Fixed rate (per-day hazard)
+
+A constant per-day hazard `rate` applied directly to each source compartment inside the window. This is mathematically identical to a spontaneous transition at `rate` (restricted to `target_age_groups` and the campaign window): every individual in a source compartment has a per-day probability of `1 - exp(-rate * dt)` of moving to the target.
+
+Use this when you want to express vaccination as a rate rather than a daily count. Unlike `flat_count`, the per-day flow scales with the current source pool, so the analytic decay $S(t) = S_0 \, e^{-r t}$ holds in the absence of competing transitions.
+
+| Field | Required | Description |
+|---|---|---|
+| `type` | yes | Literal `"fixed_rate"`. The discriminator. |
+| `rate` | yes | Per-day hazard rate. Must be `> 0`. |
+
+<CurlBlock>
+{`curl -X POST BASE_URL/simulations \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": {"preset": "V-SEIHR", "parameters": {"R0": 2.5, "VE_S": 0.7, "VE_H": 0.85}},
+    "population": {"name": "United_States"},
+    "simulation": {"start_date": "2025-01-01", "end_date": "2025-06-30", "Nsim": 10},
+    "vaccination": {
+      "campaigns": [
+        {
+          "start_date": "2025-02-01",
+          "end_date": "2025-04-30",
+          "rollout": {"type": "fixed_rate", "rate": 0.005}
+        }
+      ]
+    }
+  }'`}
+</CurlBlock>
+
+## Coverage cap
+
+Both rollout strategies are time-based: they keep delivering at their configured pace until `end_date`, regardless of how much of the population has already been vaccinated. The optional `coverage` block on each campaign adds a stop condition.
+
+```json
+"coverage": {
+  "fraction": 0.7,
+  "compartments": ["S_vax", "E_vax", "I_vax", "R_vax"]
+}
+```
+
+Once the summed current occupancy of `compartments`, restricted to the campaign's `target_age_groups`, reaches `fraction * initial_population_in_target_age_groups`, the campaign stops contributing to the rate. `initial_population_in_target_age_groups` is summed at the campaign's `start_date` across **all** compartments in those age groups (the public-health convention).
+
+| Field | Required | Description |
+|---|---|---|
+| `fraction` | yes | Cap as a fraction of initial population in `target_age_groups`. Must satisfy `0 < fraction ≤ 1`. |
+| `compartments` | yes | List of compartments whose current occupancy is summed against the threshold. Must reference compartments declared in `model.compartments`, and cannot include any compartment that also appears as a `source` in the campaign's flows (otherwise the cap fires before any doses are delivered). |
+
+A few things to be aware of:
+
+- **Current occupancy, not cumulative ever-vaccinated.** The cap reads the live state of `compartments`. If individuals can leave the vaccinated branch (waning back to `S`, death), the cap will under-count. List every downstream vaccinated compartment, including absorbing states like `D_vax` if your model has them, to match the intuitive notion of coverage.
+- **Pre-step check, single-step overshoot possible.** The cap is evaluated at the start of each step, before the binomial draw. The campaign plateaus at approximately `threshold`, with up to one step's worth of doses of overshoot.
+- **Dose-sink flows are not counted.** If a flow has `target: null` (a dose sink), doses delivered to it do not land in any named compartment and therefore do not count toward the cap. Avoid mixing sinks with `coverage` if precise tracking matters.
 
 ## Custom-model usage
 

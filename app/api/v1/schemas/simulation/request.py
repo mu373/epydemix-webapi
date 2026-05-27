@@ -351,7 +351,7 @@ class FlatCountRollout(BaseModel):
 
     type: Literal["flat_count"] = Field(
         default="flat_count",
-        description="Discriminator. The only rollout strategy supported in v1.",
+        description="Discriminator for the constant-dose-count rollout.",
     )
     daily_doses: float = Field(
         ...,
@@ -363,10 +363,70 @@ class FlatCountRollout(BaseModel):
     )
 
 
+class FixedRateRollout(BaseModel):
+    """Constant per-day hazard rate across the campaign window.
+
+    Inside the active window this is mathematically identical to a
+    spontaneous transition at `rate`: each individual in a source
+    compartment (restricted to `target_age_groups`) has a per-day hazard of
+    `rate` of moving to the corresponding target. Outside the window the
+    rate is zero. Unlike `flat_count`, the per-day flow scales with the
+    current source pool rather than being held constant.
+    """
+
+    type: Literal["fixed_rate"] = Field(
+        default="fixed_rate",
+        description="Discriminator for the fixed-hazard-rate rollout.",
+    )
+    rate: float = Field(
+        ...,
+        gt=0,
+        description=(
+            "Per-day hazard rate applied to each source compartment inside "
+            "the campaign window."
+        ),
+    )
+
+
 RolloutConfig: TypeAlias = Annotated[
-    FlatCountRollout,
+    FlatCountRollout | FixedRateRollout,
     Field(discriminator="type"),
 ]
+
+
+class CoverageCap(BaseModel):
+    """Optional per-campaign cap on cumulative vaccination coverage.
+
+    Stops a campaign's contribution to the rate once the current occupancy
+    of `compartments` (restricted to the parent campaign's
+    `target_age_groups`) reaches `fraction` of the total population in
+    those age groups at campaign start.
+
+    The check reads current compartment occupancy, not cumulative flow
+    history, so `compartments` must list every downstream vaccinated state
+    (including absorbing states like `D_vax`) for the cap to match the
+    intuitive notion of coverage. The cap is evaluated at the start of
+    each step, before the binomial draw, so a single step of overshoot is
+    possible.
+    """
+
+    fraction: float = Field(
+        ...,
+        gt=0,
+        le=1,
+        description=(
+            "Cap as a fraction of the population in `target_age_groups` "
+            "at campaign `start_date`."
+        ),
+    )
+    compartments: list[str] = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Compartments whose current occupancy is summed against the "
+            'threshold (e.g. `["S_vax","E_vax","I_vax","R_vax"]`).'
+        ),
+    )
 
 
 class VaccinationCampaignConfig(BaseModel):
@@ -383,13 +443,24 @@ class VaccinationCampaignConfig(BaseModel):
     )
     target_age_groups: list[str] | None = Field(
         default=None,
+        min_length=1,
         description=('Age group labels to target, e.g. `["20-49", "65+"]`. `null` = all groups.'),
     )
     rollout: RolloutConfig = Field(
         ...,
         description=(
             "Dose-schedule strategy. The `type` discriminator selects the shape; "
-            "remaining fields are strategy-specific. v1 supports `flat_count`."
+            "remaining fields are strategy-specific. Supported: `flat_count`, "
+            "`fixed_rate`."
+        ),
+    )
+    coverage: CoverageCap | None = Field(
+        default=None,
+        description=(
+            "Optional coverage cap. When set, the campaign stops contributing "
+            "to the rate once cumulative coverage in `target_age_groups` "
+            "reaches `fraction` of the initial population in those age groups. "
+            "Default `null` = uncapped."
         ),
     )
 

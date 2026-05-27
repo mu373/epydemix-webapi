@@ -234,6 +234,14 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
             calculated_names=calc_names,
         )
 
+        # Create initial conditions first so coverage-cap thresholds can be
+        # resolved against the t=0 population in apply_vaccinations.
+        initial_conditions = create_initial_conditions(
+            model,
+            request.initial_conditions,
+            preset_default=preset_def.default_initial_conditions if preset_def else None,
+        )
+
         # Vaccination flow (source to vaccinated target). Mutates model in place;
         # no-op when the request has no `vaccination` block. Returns the resolved
         # flows (including V-SEIHR's defaulted Susceptible -> Susceptible_vax)
@@ -243,13 +251,7 @@ def run_simulation(request: SimulationRequest) -> SimulationResponse:
             request.vaccination,
             internal_sim,
             request.model.preset,
-        )
-
-        # Create initial conditions
-        initial_conditions = create_initial_conditions(
-            model,
-            request.initial_conditions,
-            preset_default=preset_def.default_initial_conditions if preset_def else None,
+            initial_conditions=initial_conditions,
         )
 
         # Create random number generator from seed if provided

@@ -1,13 +1,15 @@
-"""Generate figure for the Flat rollout (count) section of the Campaigns guide.
+"""Generate figure for the Fixed rate (per-day hazard) section of the Campaigns guide.
 
-Produces ``flat-count-depletion.svg``: a V-SEIR run showing how a constant
-``daily_doses`` schedule diverges from the actually-delivered count as the
-susceptible pool depletes.
+Produces ``fixed-rate-depletion.svg``: the same V-SEIHR run as the flat-count
+plot, but driven by a ``fixed_rate`` campaign at a hazard rate chosen so the
+initial per-day delivery matches the flat-count budget. Shows how the
+per-day delivered count tapers smoothly as the susceptible pool shrinks,
+contrasting with flat_count's hard cliff.
 
 Re-run whenever the worked example in the docs changes.
 
 Usage:
-    uv run python scripts/plot_flat_count_depletion.py
+    uv run python scripts/plot_fixed_rate_depletion.py
 """
 
 from __future__ import annotations
@@ -41,7 +43,9 @@ START = "2025-01-01"
 END = "2025-10-31"
 C_START = "2025-02-01"
 C_END = "2025-10-15"
-DAILY_DOSES = 5000.0
+# Rate chosen so initial per-day delivery (rate * S0) matches the flat-count
+# plot's 5,000/day budget, making the two plots directly comparable.
+RATE = 0.005
 NSIM = 100
 SEED = 11
 
@@ -77,7 +81,7 @@ REQUEST = {
             {
                 "start_date": C_START,
                 "end_date": C_END,
-                "rollout": {"type": "flat_count", "daily_doses": DAILY_DOSES},
+                "rollout": {"type": "fixed_rate", "rate": RATE},
             }
         ]
     },
@@ -124,55 +128,63 @@ def main() -> None:
 
     c_start = dt.date.fromisoformat(C_START)
     c_end = dt.date.fromisoformat(C_END)
-    scheduled = np.array([DAILY_DOSES if c_start <= d <= c_end else 0.0 for d in dates])
+    rate_schedule = np.array(
+        [RATE if c_start <= d <= c_end else 0.0 for d in dates]
+    )
 
     fig, axes = plt.subplots(
-        2,
+        3,
         1,
-        figsize=(7, 5.5),
+        figsize=(7, 7),
         sharex=True,
         constrained_layout=True,
-        gridspec_kw={"height_ratios": [1.0, 0.85]},
+        gridspec_kw={"height_ratios": [0.7, 1.0, 0.85]},
     )
 
     ax0 = axes[0]
     ax0.plot(
         dates,
-        scheduled,
+        rate_schedule,
         color="gray",
         linewidth=1.5,
         linestyle="--",
-        label=f"Scheduled ({int(DAILY_DOSES):,}/day)",
+        label=f"Rate ({RATE}/day)",
     )
-    ax0.plot(
+    ax0.axvspan(c_start, c_end, color="tab:blue", alpha=0.06, label="Campaign window")
+    _format_axes(
+        ax0,
+        "Hazard rate",
+        title=f"Fixed-rate rollout, V-SEIR, N={int(N_POP):,}, R0=1.4",
+    )
+    ax0.set_ylim(0, RATE * 1.5)
+    ax0.legend(loc="upper right", fontsize=9)
+
+    ax1 = axes[1]
+    ax1.plot(
         dates,
         delivered,
         color="tab:blue",
         linewidth=2.0,
         label="Delivered (S to S_vax, median)",
     )
-    ax0.axvspan(c_start, c_end, color="tab:blue", alpha=0.06, label="Campaign window")
-    _format_axes(
-        ax0,
-        "Doses per day",
-        title=f"Flat-count rollout, V-SEIR, N={int(N_POP):,}, R0=1.4",
-    )
-    ax0.set_ylim(0, 7000)
-    ax0.legend(loc="upper right", fontsize=9)
+    ax1.axvspan(c_start, c_end, color="tab:blue", alpha=0.06)
+    _format_axes(ax1, "Doses per day")
+    ax1.set_ylim(0, 6000)
+    ax1.legend(loc="upper right", fontsize=9)
 
-    ax1 = axes[1]
-    ax1.plot(
+    ax2 = axes[2]
+    ax2.plot(
         dates,
         susceptible,
         color="tab:green",
         linewidth=2.0,
         label="Susceptible (median)",
     )
-    ax1.axvspan(c_start, c_end, color="tab:blue", alpha=0.06)
-    _format_axes(ax1, "Population")
-    ax1.legend(loc="upper right", fontsize=9)
+    ax2.axvspan(c_start, c_end, color="tab:blue", alpha=0.06)
+    _format_axes(ax2, "Population")
+    ax2.legend(loc="upper right", fontsize=9)
 
-    _save(fig, "flat-count-depletion.svg")
+    _save(fig, "fixed-rate-depletion.svg")
 
 
 if __name__ == "__main__":

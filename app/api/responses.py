@@ -4,7 +4,7 @@ from fastapi.responses import PlainTextResponse
 
 
 class PythonSourceResponse(PlainTextResponse):
-    """A downloadable Python source response."""
+    """A Python source response served as a file attachment."""
 
     media_type = "text/x-python"
 

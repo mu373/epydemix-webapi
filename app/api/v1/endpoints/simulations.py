@@ -155,17 +155,17 @@ async def create_simulation(
 @router.post(
     "/export/python",
     response_class=PythonSourceResponse,
-    summary="Export a simulation as native Python",
+    summary="Export a simulation as Python",
     description=(
-        "Render the simulation request as a standalone program using native "
-        "epydemix commands. The simulation is not executed on the server."
+        "Render the simulation request as a standalone Python program that calls "
+        "epydemix directly. The simulation is not executed on the server."
     ),
     operation_id="export_simulation_python",
 )
 async def export_simulation_python(
     request: SimulationRequest = Body(..., openapi_examples=SIMULATION_REQUEST_EXAMPLES),
 ) -> PythonSourceResponse:
-    """Export a validated simulation request as native epydemix Python."""
+    """Export a validated simulation request as executable Python."""
     try:
         source = render_simulation_python(request)
     except ValueError as e:

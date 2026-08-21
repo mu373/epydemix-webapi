@@ -5,12 +5,12 @@ sidebar_position: 8
 import EndpointSelector from '@site/src/components/EndpointSelector';
 import CurlBlock from '@site/src/components/CurlBlock';
 
-# Export Native Python
+# Export Python
 
 <EndpointSelector />
 
-Export endpoints translate API resources into standalone programs that use
-native epydemix commands and can run independently of the API server.
+Export endpoints translate API resources into standalone programs that call
+epydemix directly and can run independently of the API server.
 
 ## Export a simulation
 
@@ -46,7 +46,7 @@ Send the same JSON accepted by `POST /simulations` to `/simulations/export/pytho
   --output simulation.py`}
 </CurlBlock>
 
-Run the downloaded program in an environment containing the matching epydemix
+Run the exported program in an environment containing the matching epydemix
 version:
 
 ```bash

@@ -14,13 +14,13 @@ import ReleaseHeader from '@site/src/components/ReleaseHeader';
 ## Overview
 
 v0.10.0 adds Python export endpoints that return executable Python code
-equivalent to requests sent to the web API. The generated scripts use native
-epydemix commands, allowing users to inspect, download, and run the same
-simulation, population, contact-matrix, and model setup locally.
+equivalent to requests sent to the web API. The generated scripts call epydemix
+directly, allowing users to inspect the Python code and run the corresponding
+simulation or resource setup locally.
 
 ## Python exports
 
-The following endpoints now return downloadable Python source files:
+The following endpoints now return Python source files:
 
 | Endpoint | Exported operation |
 | --- | --- |
@@ -42,6 +42,6 @@ with the API response across these cases.
 
 ## Documentation
 
-- Add the [Export Native Python guide](/docs/guides/python-exports) with request examples and local execution instructions.
+- Add the [Python export guide](/docs/guides/python-exports) with request examples and local execution instructions.
 - Add Python export examples to the project README.
 - Update the OpenAPI specification with the new endpoints.

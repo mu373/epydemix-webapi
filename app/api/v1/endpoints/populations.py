@@ -162,14 +162,14 @@ async def get_populations() -> PopulationListResponse:
 @router.get(
     "/export/python",
     response_class=PythonSourceResponse,
-    summary="Export population listing as native Python",
+    summary="Export population listing as Python",
     operation_id="export_population_list_python",
 )
 async def export_population_list_python(
     attribute: str = Query(default="age"),
     level: int | None = Query(default=None),
 ) -> PythonSourceResponse:
-    """Export the native command that lists available epydemix populations."""
+    """Export Python that lists available epydemix populations."""
     return python_source_response(
         render_population_list_python(attribute, level), "list_populations.py"
     )
@@ -178,13 +178,13 @@ async def export_population_list_python(
 @router.post(
     "/export/python",
     response_class=PythonSourceResponse,
-    summary="Export a custom population as native Python",
+    summary="Export a custom population as Python",
     operation_id="export_custom_population_python",
 )
 async def export_custom_population_python(
     config: CustomPopulationConfig = Body(...),
 ) -> PythonSourceResponse:
-    """Export native commands that construct an inline custom population."""
+    """Export Python that constructs an inline custom population."""
     return python_source_response(
         render_custom_population_python(config), "custom_population.py"
     )
@@ -215,14 +215,14 @@ async def get_cache_status() -> CacheInfoResponse:
 @router.get(
     "/{name}/export/python",
     response_class=PythonSourceResponse,
-    summary="Export population loading as native Python",
+    summary="Export population loading as Python",
     operation_id="export_population_python",
 )
 async def export_population_python(
     name: str,
     contacts_source: str | None = Query(default=None),
 ) -> PythonSourceResponse:
-    """Export native commands that load and inspect one population."""
+    """Export Python that loads and inspects one population."""
     return python_source_response(
         render_population_python(name, contacts_source), f"{name}_population.py"
     )
@@ -231,7 +231,7 @@ async def export_population_python(
 @router.get(
     "/{name}/contacts/export/python",
     response_class=PythonSourceResponse,
-    summary="Export contact-matrix loading as native Python",
+    summary="Export contact-matrix loading as Python",
     operation_id="export_population_contacts_python",
 )
 async def export_population_contacts_python(
@@ -239,7 +239,7 @@ async def export_population_contacts_python(
     contacts_source: str | None = Query(default=None),
     layers: list[str] | None = Query(default=None),
 ) -> PythonSourceResponse:
-    """Export native commands that load and inspect contact matrices."""
+    """Export Python that loads and inspects contact matrices."""
     return python_source_response(
         render_contacts_python(name, contacts_source, layers), f"{name}_contacts.py"
     )

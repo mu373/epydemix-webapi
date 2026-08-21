@@ -20,7 +20,7 @@ uv run pytest
 ## API Endpoints
 
 - `POST /api/v1/simulations` - Run epidemic simulation
-- `POST /api/v1/simulations/export/python` - Export a simulation as native epydemix Python
+- `POST /api/v1/simulations/export/python` - Export a simulation as executable Python
 - `GET /api/v1/populations` - List available populations
 - `GET|POST /api/v1/populations/export/python` - Export population discovery or custom setup
 - `GET /api/v1/populations/{name}` - Get population details

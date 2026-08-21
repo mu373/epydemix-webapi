@@ -1,4 +1,4 @@
-"""Render population, contact, and preset resources as native Python."""
+"""Render population, contact, and preset resources as executable Python."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from .expression_renderer import _literal, _render_transition
 
 
 def render_population_list_python(attribute: str = "age", level: int | None = None) -> str:
-    """Render a script that lists native epydemix population locations.
+    """Render a script that lists epydemix population locations.
 
     Parameters
     ----------
@@ -41,7 +41,7 @@ def render_population_python(name: str, contacts_source: str | None = None) -> s
     Parameters
     ----------
     name : str
-        Native epydemix population identifier.
+        epydemix population identifier.
     contacts_source : str or None, optional
         Contact-matrix data source.
 
@@ -77,7 +77,7 @@ def render_contacts_python(
     Parameters
     ----------
     name : str
-        Native epydemix population identifier.
+        epydemix population identifier.
     contacts_source : str or None, optional
         Contact-matrix data source.
     layers : list of str or None, optional
@@ -123,7 +123,7 @@ print("Overall spectral radius:", calculate_spectral_radius(overall))
 
 
 def render_custom_population_python(config: CustomPopulationConfig) -> str:
-    """Render native commands that construct a custom population.
+    """Render Python commands that construct a custom population.
 
     Age-group and contact-layer insertion order is preserved so the generated
     population has the same group indices and matrices as the API request.
@@ -162,7 +162,7 @@ def render_custom_population_python(config: CustomPopulationConfig) -> str:
 
 
 def render_preset_python(name: str) -> str:
-    """Render native commands that construct a registered model preset.
+    """Render Python commands that construct a registered model preset.
 
     Population-dependent parameter conversions are intentionally deferred until
     a population is attached; the full simulation exporter emits those calls.

@@ -62,18 +62,18 @@ Provide `simulation.seed` when you need reproducible stochastic trajectories.
 
 ## Export population commands
 
-```bash
-# List available populations
+<CurlBlock>
+{`# List available populations
 curl BASE_URL/populations/export/python --output list_populations.py
 
 # Load and inspect one population
-curl "BASE_URL/populations/United_States/export/python?contacts_source=mistry_2021" \
+curl "BASE_URL/populations/United_States/export/python?contacts_source=mistry_2021" \\
   --output population.py
 
 # Load selected contact layers
-curl "BASE_URL/populations/United_States/contacts/export/python?layers=home&layers=work" \
-  --output contacts.py
-```
+curl "BASE_URL/populations/United_States/contacts/export/python?layers=home&layers=work" \\
+  --output contacts.py`}
+</CurlBlock>
 
 To export an inline population, post the custom-population block directly:
 
@@ -91,11 +91,31 @@ To export an inline population, post the custom-population block directly:
   --output custom_population.py`}
 </CurlBlock>
 
+### Example Python output
+
+The custom-population request above returns:
+
+```python
+import numpy as np
+
+from epydemix.population import Population
+
+population = Population(name='Two groups')
+population.add_population(
+    Nk=[80000.0, 20000.0],
+    Nk_names=['younger', 'older'],
+)
+population.add_contact_matrix(
+    contact_matrix=np.array([[8.0, 1.5], [2.0, 4.0]], dtype=float),
+    layer_name='all',
+)
+```
+
 ## Export a preset
 
-```bash
-curl BASE_URL/models/presets/SIR/export/python --output sir_model.py
-```
+<CurlBlock>
+{`curl BASE_URL/models/presets/SIR/export/python --output sir_model.py`}
+</CurlBlock>
 
 The preset export shows its compartments, default parameters, and explicit
 transitions. Population-dependent calculations are emitted by the simulation

@@ -5,7 +5,7 @@ sidebar_position: 8
 import EndpointSelector from '@site/src/components/EndpointSelector';
 import CurlBlock from '@site/src/components/CurlBlock';
 
-# Export Python
+# Python Code Export
 
 <EndpointSelector />
 
@@ -45,6 +45,72 @@ Send the same JSON accepted by `POST /simulations` to `/simulations/export/pytho
   }' \\
   --output simulation.py`}
 </CurlBlock>
+
+### Example simulation Python output
+
+The response is a complete Python script. For the request above, its key
+sections look like this:
+
+```python
+import numpy as np
+
+from epydemix import EpiModel
+from epydemix.population import load_epydemix_population
+from epydemix.utils.utils import compute_simulation_dates
+
+# Helper functions for R0 conversion and Balcan seasonality are included here.
+
+start_date = '2025-08-01'
+end_date = '2026-07-31'
+dt = 1.0
+internal_end_date = end_date
+
+population = load_epydemix_population(
+    population_name='United_States',
+    contacts_source=None,
+    layers=['home', 'work', 'school', 'community'],
+    age_group_mapping=None,
+    data_version="v1.2.0",
+)
+
+model = EpiModel(compartments=['Susceptible', 'Exposed', 'Infected', 'Recovered'])
+model.set_population(population)
+
+# Compartments, parameters, transitions, and calculated parameters are added here.
+
+model.add_parameter(
+    parameter_name='transmission_rate',
+    value=apply_balcan_seasonality(
+        value=model.get_parameter('transmission_rate'),
+        start_date='2025-08-01',
+        end_date=internal_end_date,
+        max_date='2026-01-15',
+        min_date='2026-07-15',
+        min_value=0.85,
+        max_value=1.0,
+        dt=1.0,
+    ),
+)
+
+initial_conditions = None
+
+rng = np.random.default_rng(42)
+results = model.run_simulations(
+    start_date=start_date,
+    end_date=internal_end_date,
+    Nsim=100,
+    dt=dt,
+    initial_conditions_dict=initial_conditions,
+    resample_frequency='D',
+    rng=rng,
+)
+
+quantiles = None
+compartment_quantiles = results.get_quantiles_compartments(quantiles=quantiles)
+transition_quantiles = results.get_quantiles_transitions(quantiles=quantiles)
+compartment_quantiles.to_csv("compartments.csv", index=False)
+transition_quantiles.to_csv("transitions.csv", index=False)
+```
 
 Run the exported program in an environment containing the matching epydemix
 version:

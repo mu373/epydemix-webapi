@@ -261,6 +261,14 @@ if settings.mcp_enabled:
         app,
         name="epydemix",
         description="Run epidemic simulations and browse populations from the epydemix library.",
-        exclude_operations=["get_population_cache_status"],
+        exclude_operations=[
+            "get_population_cache_status",
+            "export_simulation_python",
+            "export_population_list_python",
+            "export_custom_population_python",
+            "export_population_python",
+            "export_population_contacts_python",
+            "export_model_preset_python",
+        ],
     )
     mcp.mount_http()

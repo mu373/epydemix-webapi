@@ -1,0 +1,106 @@
+---
+sidebar_position: 8
+---
+
+import EndpointSelector from '@site/src/components/EndpointSelector';
+import CurlBlock from '@site/src/components/CurlBlock';
+
+# Export Native Python
+
+<EndpointSelector />
+
+Export endpoints translate API resources into standalone programs that use
+native Epydemix commands. Generated programs do not import the WebAPI package.
+
+## Export a simulation
+
+Send the same JSON accepted by `POST /simulations` to `/simulations/export/python`:
+
+<CurlBlock>
+{`curl -X POST BASE_URL/simulations/export/python \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": {
+      "preset": "SEIR",
+      "parameters": {
+        "R0": 2.5,
+        "incubation_period": 3.0,
+        "infectious_period": 2.5
+      }
+    },
+    "population": {"name": "United_States"},
+    "simulation": {
+      "start_date": "2025-08-01",
+      "end_date": "2026-07-31",
+      "Nsim": 100,
+      "seed": 42
+    },
+    "parameter_transforms": [{
+      "target_parameter": "transmission_rate",
+      "method": "balcan",
+      "max_date": "2026-01-15",
+      "min_date": "2026-07-15",
+      "min_value": 0.85
+    }]
+  }' \\
+  --output simulation.py`}
+</CurlBlock>
+
+Run the downloaded program in an environment containing the matching Epydemix
+version:
+
+```bash
+uv run simulation.py
+```
+
+The program writes `compartments.csv` and `transitions.csv`. When the request
+uses API-level conveniences such as R0 calibration, seasonality, scaling, or
+vaccination campaigns, the exporter includes the required standalone helper
+definitions.
+
+Provide `simulation.seed` when you need reproducible stochastic trajectories.
+
+## Export population commands
+
+```bash
+# List available populations
+curl BASE_URL/populations/export/python --output list_populations.py
+
+# Load and inspect one population
+curl "BASE_URL/populations/United_States/export/python?contacts_source=mistry_2021" \
+  --output population.py
+
+# Load selected contact layers
+curl "BASE_URL/populations/United_States/contacts/export/python?layers=home&layers=work" \
+  --output contacts.py
+```
+
+To export an inline population, post the custom-population block directly:
+
+<CurlBlock>
+{`curl -X POST BASE_URL/populations/export/python \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "source": "custom",
+    "name": "Two groups",
+    "age_groups": {"younger": 80000, "older": 20000},
+    "contact_matrices": {
+      "all": [[8.0, 1.5], [2.0, 4.0]]
+    }
+  }' \\
+  --output custom_population.py`}
+</CurlBlock>
+
+## Export a preset
+
+```bash
+curl BASE_URL/models/presets/SIR/export/python --output sir_model.py
+```
+
+The preset export shows its compartments, default parameters, and explicit
+transitions. Population-dependent calculations are emitted by the simulation
+export once a population is available.
+
+Health checks, server cache statistics, and discovery endpoints are not
+exportable because they describe the WebAPI service rather than Epydemix
+objects or operations.

@@ -6,7 +6,9 @@ This module provides the endpoint for running epidemic simulations.
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.openapi.models import Example
 
+from ....services.python_export import render_simulation_python
 from ....services.simulation_service import run_simulation
+from ...responses import PythonSourceResponse, python_source_response
 from ..schemas.simulation import SimulationRequest, SimulationResponse
 
 router = APIRouter()
@@ -148,3 +150,24 @@ async def create_simulation(
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Simulation failed: {str(e)}")
+
+
+@router.post(
+    "/export/python",
+    response_class=PythonSourceResponse,
+    summary="Export a simulation as native Python",
+    description=(
+        "Render the simulation request as a standalone program using native "
+        "Epydemix commands. The simulation is not executed on the server."
+    ),
+    operation_id="export_simulation_python",
+)
+async def export_simulation_python(
+    request: SimulationRequest = Body(..., openapi_examples=SIMULATION_REQUEST_EXAMPLES),
+) -> PythonSourceResponse:
+    """Export a validated simulation request as native Epydemix Python."""
+    try:
+        source = render_simulation_python(request)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return python_source_response(source, "epydemix_simulation.py")

@@ -2,8 +2,7 @@
 title: v0.10.0
 date: 2026-08-21
 summary: |
-  - Export API requests and resources as native Epydemix Python
-  - Reproduce simulation results locally with the same random seed
+  - New Python export API for WebAPI operations
 ---
 
 import ReleaseHeader from '@site/src/components/ReleaseHeader';
@@ -14,9 +13,10 @@ import ReleaseHeader from '@site/src/components/ReleaseHeader';
 
 ## Overview
 
-- Add native Python exports for simulations, populations, contact matrices, and model presets.
-- Generate standalone programs that depend on Epydemix rather than the WebAPI package.
-- Preserve seeded simulation behavior so exported programs can reproduce API results locally.
+v0.10.0 adds a Python export API that returns executable Python source
+corresponding to WebAPI operations. The generated programs use native Epydemix
+commands, allowing users to inspect, download, and run the equivalent operations
+locally without importing the WebAPI package.
 
 ## Python exports
 

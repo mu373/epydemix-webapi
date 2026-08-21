@@ -169,7 +169,7 @@ async def export_population_list_python(
     attribute: str = Query(default="age"),
     level: int | None = Query(default=None),
 ) -> PythonSourceResponse:
-    """Export the native command that lists available Epydemix populations."""
+    """Export the native command that lists available epydemix populations."""
     return python_source_response(
         render_population_list_python(attribute, level), "list_populations.py"
     )

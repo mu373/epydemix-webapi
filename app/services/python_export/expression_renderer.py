@@ -15,7 +15,7 @@ def _literal(value: object) -> str:
 
 
 class _ExpressionRenderer(ast.NodeTransformer):
-    """Turn expression names into lookups on the native Epydemix model."""
+    """Turn expression names into lookups on the native epydemix model."""
 
     def visit_Name(self, node: ast.Name) -> ast.expr:  # noqa: N802
         """Replace a parameter name with its generated runtime lookup."""
@@ -141,7 +141,7 @@ def _render_transition(source: str, target: str, kind: str, params: list[str]) -
     target : str
         Target compartment name.
     kind : str
-        Native Epydemix transition kind.
+        Native epydemix transition kind.
     params : list of str
         Parameter names consumed by the transition.
 

@@ -2,7 +2,7 @@
 title: v0.10.0
 date: 2026-08-21
 summary: |
-  - New Python export API for WebAPI operations
+  - New API endpoints for exporting requests as executable epydemix Python
 ---
 
 import ReleaseHeader from '@site/src/components/ReleaseHeader';
@@ -13,10 +13,10 @@ import ReleaseHeader from '@site/src/components/ReleaseHeader';
 
 ## Overview
 
-v0.10.0 adds a Python export API that returns executable Python source
-corresponding to WebAPI operations. The generated programs use native Epydemix
-commands, allowing users to inspect, download, and run the equivalent operations
-locally without importing the WebAPI package.
+v0.10.0 adds Python export endpoints that return executable Python code
+equivalent to requests sent to the web API. The generated scripts use native
+epydemix commands, allowing users to inspect, download, and run the same
+simulation, population, contact-matrix, and model setup locally.
 
 ## Python exports
 

@@ -9,14 +9,14 @@ from .expression_renderer import _literal, _render_transition
 
 
 def render_population_list_python(attribute: str = "age", level: int | None = None) -> str:
-    """Render a script that lists native Epydemix population locations.
+    """Render a script that lists native epydemix population locations.
 
     Parameters
     ----------
     attribute : str, optional
         Population attribute used to filter available locations.
     level : int or None, optional
-        Geographic level passed to Epydemix.
+        Geographic level passed to epydemix.
 
     Returns
     -------
@@ -36,12 +36,12 @@ print(locations)
 
 
 def render_population_python(name: str, contacts_source: str | None = None) -> str:
-    """Render a script that loads and summarizes an Epydemix population.
+    """Render a script that loads and summarizes an epydemix population.
 
     Parameters
     ----------
     name : str
-        Native Epydemix population identifier.
+        Native epydemix population identifier.
     contacts_source : str or None, optional
         Contact-matrix data source.
 
@@ -77,7 +77,7 @@ def render_contacts_python(
     Parameters
     ----------
     name : str
-        Native Epydemix population identifier.
+        Native epydemix population identifier.
     contacts_source : str or None, optional
         Contact-matrix data source.
     layers : list of str or None, optional

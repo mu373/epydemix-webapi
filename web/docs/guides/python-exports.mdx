@@ -10,7 +10,7 @@ import CurlBlock from '@site/src/components/CurlBlock';
 <EndpointSelector />
 
 Export endpoints translate API resources into standalone programs that use
-native Epydemix commands. Generated programs do not import the WebAPI package.
+native epydemix commands and can run independently of the API server.
 
 ## Export a simulation
 
@@ -46,7 +46,7 @@ Send the same JSON accepted by `POST /simulations` to `/simulations/export/pytho
   --output simulation.py`}
 </CurlBlock>
 
-Run the downloaded program in an environment containing the matching Epydemix
+Run the downloaded program in an environment containing the matching epydemix
 version:
 
 ```bash
@@ -102,5 +102,5 @@ transitions. Population-dependent calculations are emitted by the simulation
 export once a population is available.
 
 Health checks, server cache statistics, and discovery endpoints are not
-exportable because they describe the WebAPI service rather than Epydemix
+exportable because they describe the web API service rather than epydemix
 objects or operations.

@@ -50,7 +50,7 @@ async def get_presets() -> PresetsListResponse:
     operation_id="export_model_preset_python",
 )
 async def export_preset_python(name: str) -> PythonSourceResponse:
-    """Export an API preset as explicit native Epydemix model commands."""
+    """Export an API preset as explicit native epydemix model commands."""
     if name not in PRESETS:
         raise HTTPException(status_code=404, detail=f"Unknown model preset: {name}")
     return python_source_response(render_preset_python(name), f"{name.lower()}_model.py")

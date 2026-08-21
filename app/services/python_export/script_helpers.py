@@ -1,4 +1,4 @@
-"""Helper source embedded into generated Epydemix scripts."""
+"""Helper source embedded into generated epydemix scripts."""
 
 _PARAMETER_HELPERS = '''
 def calculate_dominant_contact_eigenvalue(population) -> float:

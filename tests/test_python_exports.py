@@ -1,4 +1,4 @@
-"""Tests for standalone native-Epydemix Python exports."""
+"""Tests for standalone native-epydemix Python exports."""
 
 from __future__ import annotations
 
